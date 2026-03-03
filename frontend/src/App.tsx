@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from './store';
 import { 
@@ -23,9 +23,14 @@ const WS_BASE = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
-  const { messages, emotion, isSpeaking, isListening, isTyping, cameraActive } = useSelector((state: RootState) => state.elysia);
+  const { messages, emotion, isSpeaking, isListening, isTyping, cameraActive, visionAnalysis } = useSelector((state: RootState) => state.elysia);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const webcamRef = React.useRef<Webcam>(null);
+  
+  // Track last analysis to avoid duplicate comments
+  const lastAnalysisRef = useRef<string>('');
+  // Track if we're currently processing a vision response
+  const isProcessingVisionRef = useRef<boolean>(false);
 
   const handleSpeak = async (text: string) => {
     try {
@@ -123,16 +128,35 @@ const App: React.FC = () => {
   };
 
   const handleFrame = async (imageSrc: string) => {
+    if (isProcessingVisionRef.current) return;
+    
     const fetchRes = await fetch(imageSrc);
     const blob = await fetchRes.blob();
-    const formData = new FormData();
-    formData.append('image', blob, 'frame.jpg');
-
+    
+    isProcessingVisionRef.current = true;
+    
     try {
-      const response = await axios.post(`${API_BASE}/api/vision/analyze`, formData);
-      dispatch(setVisionAnalysis(response.data.analysis));
+      // Use FormData to send image directly to vision-chat with empty message
+      const formData = new FormData();
+      formData.append('message', '[VISION_ONLY]'); // Special flag to indicate vision-only
+      formData.append('file', blob, 'frame.jpg');
+
+      const response = await axios.post(`${API_BASE}/api/chat/vision-chat`, formData);
+      const { response: elysia_response, emotion: new_emotion, visual_description } = response.data;
+
+      // Only speak if it's a new observation
+      if (visual_description !== lastAnalysisRef.current) {
+        lastAnalysisRef.current = visual_description;
+        dispatch(setVisionAnalysis(visual_description));
+        dispatch(addMessage({ role: 'elysia', content: elysia_response }));
+        if (new_emotion) dispatch(setEmotion(new_emotion));
+        handleSpeak(elysia_response);
+      }
+      
     } catch (err) {
-      console.error("Vision analysis failed", err);
+      console.error("Vision frame processing failed", err);
+    } finally {
+      isProcessingVisionRef.current = false;
     }
   };
 
