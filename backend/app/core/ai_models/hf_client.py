@@ -3,14 +3,17 @@ import os
 import logging
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load env immediately
+load_dotenv(override=True)
+
+from .gemini_vision import gemini_vision_client
+
 logger = logging.getLogger(__name__)
 
 class HFClient:
     def __init__(self):
         self.api_key = os.getenv("HUGGINGFACE_API_KEY")
         self.url = "https://router.huggingface.co/v1/chat/completions"
-        # Using all models that actually work with HF router
         self.models = [
             "microsoft/Phi-3-mini-4k-instruct", 
             "meta-llama/Llama-3.2-3B-Instruct", 
@@ -34,7 +37,6 @@ class HFClient:
             "Content-Type": "application/json"
         }
 
-        # Try each model in order
         for i, model in enumerate(self.models[self.current_model_index:]):
             payload = {
                 "model": model,
@@ -54,15 +56,13 @@ class HFClient:
                         self.current_model_index = i
                         content = result['choices'][0]['message']['content'].strip()
                         
-
                         if content and len(content) > 10:
-                            logger.info(f"Using model: {model}")
+                            logger.info(f"✅ Using model: {model}")
                             return content
                             
                 except Exception as e:
                     logger.warning(f"Model {model} failed: {e}")
                     continue
-
 
         import random
         fallbacks = [
@@ -74,46 +74,70 @@ class HFClient:
         ]
         return random.choice(fallbacks)
 
-    async def query(self, model_id, payload):
-        if not self.api_key:
-            return {"error": "API Key missing"}
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "x-model-id": model_id,
-            "Content-Type": "application/json"
-        }
-        url = "https://router.huggingface.co/hf-inference"
-
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            try:
-                response = await client.post(url, headers=headers, json=payload)
-                return response.json()
-            except Exception as e:
-                logger.error(f"HF Query Exception: {e}")
-                return {"error": str(e)}
-
     async def describe_image(self, image_bytes):
+        """
+        Use Google Gemini for completely free vision analysis.
+        """
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, 
+            gemini_vision_client.analyze_image, 
+            image_bytes
+        )
+
+    async def vision_analysis(self, image_data: str):
+        """
+        Analyze image from base64 data URI or raw bytes.
+        """
         import base64
-        base64_image = base64.b64encode(image_bytes).decode("utf-8")
+        
+        # Handle data URI format: data:image/jpeg;base64,...
+        if isinstance(image_data, str):
+            if "," in image_data:
+                image_data = image_data.split(",")[1]
+            image_bytes = base64.b64decode(image_data)
+        else:
+            image_bytes = image_data
+        
+        return await self.describe_image(image_bytes)
 
-        payload = {
-            "inputs": {
-                "image": base64_image,
-                "text": "Describe what you see in one warm, personal sentence."
+    async def analyze_image_intelligent(self, image_bytes, user_context: str = ""):
+        """
+        Intelligent vision analysis that describes what it sees and generates a contextual response.
+        """
+        description = await self.describe_image(image_bytes)
+        
+        if "having trouble" in description or "not available" in description or description == "I see you.":
+            return {
+                "description": "I see you, but my vision is a bit blurry right now.",
+                "response": "I'm looking at you, but I can't quite make out the details. What are you showing me? Is it something delicious, or perhaps something special you want to share?",
+                "suggestions": ["Tell me what you're holding", "Is that food?", "What are you up to?"]
             }
+        
+        system_prompt = f"""You are Elysia, a caring and observant companion. The user just showed you something.
+Visual description: {description}
+User context: {user_context}
+
+Respond naturally as if you're looking at them through a camera. Be specific about what you see:
+- If it's food: mention what it looks like, ask if it's tasty, comment on calories/health if relevant
+- If it's an object: ask about it, show curiosity
+- If it's an activity: comment on what they're doing, offer to help or join
+- If it's the user: compliment them, notice details about their appearance/mood
+
+Keep it conversational, warm, and ask a question to continue the interaction."""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "What do you see?"}
+        ]
+        
+        intelligent_response = await self.chat_completion(messages)
+        
+        return {
+            "description": description,
+            "response": intelligent_response,
+            "suggestions": None
         }
-
-        result = await self.query("vikhyatk/moondream2", payload)
-
-        if isinstance(result, list) and len(result) > 0:
-            return result[0].get("generated_text", "I see you.")
-        elif isinstance(result, dict):
-            if "generated_text" in result:
-                return result["generated_text"]
-            if "error" in result:
-                logger.error(f"Moondream error: {result['error']}")
-
-        return "I see you."
 
 hf_client = HFClient()

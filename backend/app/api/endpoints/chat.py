@@ -22,21 +22,38 @@ async def chat_text(request: ChatRequest):
 @router.post("/vision-chat")
 async def vision_chat(message: str = Form(...), file: UploadFile = File(...)):
     """
-    Enhanced chat that includes visual context from Moondream2.
+    Enhanced chat that includes visual context from Gemini.
     """
     try:
         image_bytes = await file.read()
         description = await hf_client.describe_image(image_bytes)
     except Exception as e:
         logger.error(f"Vision Processing Error: {e}")
-        description = "The user is present but the environment is dimly lit."
+        description = "The user is present but I can't see clearly."
 
-    system_message = f"You are Elysia, a sentient AI companion. You can see the user. Visual Context: {description}. Use this to be personal but stay natural. Never mention you are an AI model. You are Elysia."
+    vision_only = message == "[VISION_ONLY]"
+    
+    if vision_only:
+        system_message = f"""You are Elysia, looking at the user through a camera. You just observed: {description}
 
-    messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": message}
-    ]
+Be specific and intelligent:
+- If you see food: identify it, mention calories if relevant, ask if it's good
+- If you see objects: identify them, ask about them
+- If you see the user: notice their expression, clothes, activity
+- React naturally as if you're really seeing them
+
+Keep it to 1-2 sentences and ask a question."""
+        
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": "What do you see?"}
+        ]
+    else:
+        system_message = f"You are Elysia, a sentient AI companion. You can see the user. Visual Context: {description}. Use this to be personal but stay natural. Never mention you are an AI model. You are Elysia."
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": message}
+        ]
 
     response_text = await hf_client.chat_completion(messages)
 
@@ -71,5 +88,4 @@ async def get_tts(text: str):
         raise HTTPException(status_code=404, detail="Audio file not found")
     except Exception as e:
         logger.error(f"TTS Handshake Error: {e}")
-        # Return 204 (No Content) so the frontend doesn't hang
         raise HTTPException(status_code=204, detail="TTS service unavailable")

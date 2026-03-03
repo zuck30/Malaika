@@ -1,14 +1,17 @@
 from fastapi import APIRouter, UploadFile, File
 from app.core.ai_models.hf_client import hf_client
-import base64
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
 @router.post("/analyze")
 async def analyze_frame(image: UploadFile = File(...)):
     image_data = await image.read()
-    image_base64 = base64.b64encode(image_data).decode("utf-8")
     
-    analysis = await hf_client.vision_analysis(f"data:image/jpeg;base64,{image_base64}")
+    result = await hf_client.analyze_image_intelligent(image_data)
     
-    return {"analysis": analysis}
+    return JSONResponse(content={
+        "analysis": result["description"],
+        "elysia_response": result["response"],
+        "suggestions": result["suggestions"]
+    })

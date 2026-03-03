@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import chat, vision, emotion
@@ -13,8 +16,13 @@ app = FastAPI(title="Elysia-AI Companion API")
 
 @app.on_event("startup")
 async def startup_event():
+    # Check all required keys
     if not os.getenv("HUGGINGFACE_API_KEY"):
         logger.warning("HUGGINGFACE_API_KEY is not set! AI features will not work.")
+    if not os.getenv("GOOGLE_API_KEY"):
+        logger.warning("GOOGLE_API_KEY is not set! Vision features will not work.")
+    else:
+        logger.info("✅ GOOGLE_API_KEY is set, Vision enabled")
 
 # Configure CORS => Muhimu kwa ajili ya mawasiliano na React frontend
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
