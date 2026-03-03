@@ -165,7 +165,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   className="w-1.5 h-1.5 bg-snapchat-yellow rounded-full"
                 />
               </div>
-              <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Elysia is typing</span>
+              <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Elysia is thinking</span>
             </motion.div>
           )}
         </div>
