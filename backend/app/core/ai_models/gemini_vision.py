@@ -32,14 +32,15 @@ class GeminiVisionClient:
     
     def analyze_image(self, image_data) -> str:
         """
-        Analyze image using Google Gemini (free tier).
-        Handles raw bytes, base64 strings, and BytesIO.
+        Analyze image using Google Gemini.
+        Requirement 1: Reset BytesIO position to 0.
+        Requirement 2: Use PIL to validate and convert to JPEG/PNG.
         """
         if not self.model:
             return "Vision service not available - API key missing"
         
         try:
-            # Handle potential BytesIO object
+            # Handle potential BytesIO object (Requirement 1)
             if isinstance(image_data, io.BytesIO):
                 image_data.seek(0)
                 image_bytes = image_data.read()
@@ -51,31 +52,18 @@ class GeminiVisionClient:
             else:
                 image_bytes = image_data
 
-            # Check if it's a base64 encoded bytes object
-            try:
-                if isinstance(image_bytes, bytes):
-                    text = image_bytes.decode('utf-8', errors='ignore')
-                    if text.startswith('data:image'):
-                        base64_data = text.split(',')[1]
-                        image_bytes = base64.b64decode(base64_data)
-                        logger.info("Extracted image from data URI in bytes")
-            except Exception:
-                pass
-
-            # Validate and convert using PIL
+            # Requirement 2: Use PIL to validate and convert
             try:
                 image = Image.open(io.BytesIO(image_bytes))
+                # Ensure it's in a standard format (RGB)
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+
+                # We can pass the PIL image directly to Gemini SDK
             except Exception as e:
-                logger.error(f"PIL failed to identify image: {e}")
+                logger.error(f"PIL failed to process image: {e}")
                 return "I'm having trouble identifying this image format."
             
-            # Convert to RGB (required for many JPEG operations and some APIs)
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Ensure it's a supported format for Gemini (JPEG/PNG)
-            # We can re-save it to a BytesIO object if needed, but Gemini SDK often accepts PIL images
-
             prompt = "Describe what you see in detail. Be specific about objects, food, people, and activities. Keep it to 1-2 sentences."
             
             # Use PIL image directly with Gemini SDK
@@ -91,7 +79,6 @@ class GeminiVisionClient:
             
         except Exception as e:
             logger.error(f"❌ Gemini vision failed: {e}", exc_info=True)
-            # Return error so fallback kicks in
             return "I see you there, but I'm having trouble making out the details."
 
 # Create singleton

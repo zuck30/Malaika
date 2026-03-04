@@ -14,6 +14,7 @@ def validate_and_process_image(image_data) -> bytes:
     Handles raw bytes, base64 strings, and BytesIO.
     """
     try:
+        # REQUIREMENT 1: Reset BytesIO position to 0
         if isinstance(image_data, io.BytesIO):
             image_data.seek(0)
             image_bytes = image_data.read()
@@ -27,15 +28,11 @@ def validate_and_process_image(image_data) -> bytes:
         # Check file size
         if len(image_bytes) > MAX_FILE_SIZE_MB * 1024 * 1024:
             logger.warning(f"Image too large: {len(image_bytes)} bytes")
-            # We could resize it instead of failing
 
+        # REQUIREMENT 2: Use PIL to validate and convert to JPEG
         image = Image.open(io.BytesIO(image_bytes))
 
-        # Handle formats like WebP or HEIC if PIL supports them (HEIC usually needs extra libs, but WebP is supported)
-        if image.format not in ['JPEG', 'PNG', 'WEBP']:
-             logger.info(f"Converting image from {image.format} to JPEG")
-
-        # Convert to RGB
+        # Convert to RGB (required for JPEG)
         if image.mode != 'RGB':
             image = image.convert('RGB')
 
