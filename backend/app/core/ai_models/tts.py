@@ -14,22 +14,22 @@ class TTSEngine:
         
         self.profiles = {
             "seductive": {
-                "rate": "-20%",
+                "rate": "+0%",
                 "pitch": "-12Hz",
                 "volume": "+0%"
             },
             "dreamy": {
-                "rate": "-15%",
+                "rate": "+5%",
                 "pitch": "+3Hz",
                 "volume": "-5%"
             },
             "whisper": {
-                "rate": "-28%",
+                "rate": "-10%",
                 "pitch": "-15Hz",
                 "volume": "-15%"
             },
             "cute": {
-                "rate": "-5%",
+                "rate": "+10%",
                 "pitch": "+10Hz",
                 "volume": "+10%"
             }
@@ -42,11 +42,10 @@ class TTSEngine:
         self.last_error_text = ""
 
     def _preprocess_text(self, text: str, mood: str) -> str:
+        # Reduced padding/pauses for better pace
         if mood in ["seductive", "whisper", "dreamy"]:
-            text = text.replace(", ", "... ")
-            text = text.replace(". ", ".... ")
-            if not text.endswith("..."):
-                text += "..."
+            text = text.replace(", ", ". ")
+            text = text.replace(". ", ". ")
         return text
 
     async def generate_audio(self, text: str, mood: str = "seductive"):

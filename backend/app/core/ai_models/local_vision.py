@@ -4,6 +4,8 @@ from PIL import Image
 import io
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import asyncio
+from functools import partial
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ class LocalVisionClient:
             
             description = self.model.answer_question(
                 enc_image, 
-                "Describe what you see in detail. Be specific about objects, food, people, and activities.",
+                "Describe what you see in one short sentence.",
                 self.tokenizer
             )
             
@@ -57,5 +59,16 @@ class LocalVisionClient:
         except Exception as e:
             logger.error(f"Local vision analysis failed: {e}")
             return "I see you there, but I'm having trouble making out the details."
+
+    async def analyze_image_async(self, image_bytes: bytes) -> str:
+        """
+        Async wrapper for analyze_image to avoid blocking the event loop.
+        """
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(self.analyze_image, image_bytes)
+        )
+        return result
 
 local_vision_client = LocalVisionClient()
