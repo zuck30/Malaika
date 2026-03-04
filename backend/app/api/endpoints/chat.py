@@ -19,13 +19,16 @@ async def chat_text(request: ChatRequest):
     response_text = await hf_client.chat_completion(messages)
     return {"response": response_text}
 
+from app.core.ai_models.vision_utils import validate_and_process_image
+
 @router.post("/vision-chat")
 async def vision_chat(message: str = Form(...), file: UploadFile = File(...)):
     """
     Enhanced chat that includes visual context from Gemini.
     """
     try:
-        image_bytes = await file.read()
+        raw_bytes = await file.read()
+        image_bytes = validate_and_process_image(raw_bytes)
         description = await hf_client.describe_image(image_bytes)
     except Exception as e:
         logger.error(f"Vision Processing Error: {e}")
