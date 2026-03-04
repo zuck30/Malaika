@@ -59,9 +59,39 @@ class HFClient:
                         if content and len(content) > 10:
                             logger.info(f"✅ Using model: {model}")
                             return content
+                    else:
+                        logger.warning(f"Model {model} returned status {response.status_code}")
+                        logger.warning(f"Error body: {response.text}")
+                        # For Phi-3, if it fails with 400, it might be due to the system message or format
+                        if "Phi-3" in model and response.status_code == 400:
+                            logger.info(f"Retrying {model} with modified payload...")
+                            # Some Phi-3 deployments on HF might not support system role or expect it in a specific way
+                            # Let's try merging system message into the first user message
+                            modified_messages = []
+                            sys_msg = ""
+                            for m in messages:
+                                if m["role"] == "system":
+                                    sys_msg += m["content"] + "\n\n"
+                                else:
+                                    if not modified_messages and m["role"] == "user":
+                                        modified_messages.append({"role": "user", "content": sys_msg + m["content"]})
+                                    else:
+                                        modified_messages.append(m)
                             
+                            if modified_messages:
+                                payload["messages"] = modified_messages
+                                response = await client.post(self.url, headers=headers, json=payload)
+                                if response.status_code == 200:
+                                    result = response.json()
+                                    self.current_model_index = i
+                                    content = result['choices'][0]['message']['content'].strip()
+                                    logger.info(f"✅ Using model: {model} (after modification)")
+                                    return content
+                                else:
+                                    logger.warning(f"Model {model} retry failed: {response.text}")
+
                 except Exception as e:
-                    logger.warning(f"Model {model} failed: {e}")
+                    logger.warning(f"Model {model} failed with exception: {e}")
                     continue
 
         import random
