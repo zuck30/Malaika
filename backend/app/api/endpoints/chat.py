@@ -7,8 +7,8 @@ import os
 import logging
 from pydantic import BaseModel
 
-# Import Gemini vision client directly
-from app.core.ai_models.gemini_vision import gemini_vision_client
+# Import Local vision client
+from app.core.ai_models.local_vision import local_vision_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -31,7 +31,7 @@ async def vision_chat(
     file: UploadFile = File(None)
 ):
     """
-    Enhanced chat that includes visual context from GEMINI ONLY.
+    Enhanced chat that includes visual context from local vision (Moondream).
     If no image is provided, it responds playfully.
     """
     # DEBUG: Log exactly what we received
@@ -61,9 +61,9 @@ async def vision_chat(
                     # Validate and process image
                     image_bytes = validate_and_process_image(raw_bytes)
                     
-                    # Use GEMINI directly for vision
-                    description = gemini_vision_client.analyze_image(image_bytes)
-                    logger.info(f"✅ Gemini vision success: {description[:100]}...")
+                    # Use Local Vision
+                    description = await local_vision_client.analyze_image_async(image_bytes)
+                    logger.info(f"✅ Local vision success: {description[:100]}...")
                 except Exception as e:
                     logger.error(f"❌ Vision processing error: {e}")
                     description = None
