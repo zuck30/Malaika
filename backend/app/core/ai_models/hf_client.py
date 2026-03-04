@@ -37,7 +37,10 @@ class HFClient:
             "Content-Type": "application/json"
         }
 
-        for i, model in enumerate(self.models[self.current_model_index:]):
+        # Requirement 4: Maintain fallback chain
+        # We start from current_model_index but allow falling back through the rest
+        for i in range(self.current_model_index, len(self.models)):
+            model = self.models[i]
             payload = {
                 "model": model,
                 "messages": messages,
@@ -53,30 +56,32 @@ class HFClient:
                     
                     if response.status_code == 200:
                         result = response.json()
-                        self.current_model_index = i
+                        self.current_model_index = i  # Remember working model
                         content = result['choices'][0]['message']['content'].strip()
                         
                         if content and len(content) > 10:
                             logger.info(f"✅ Using model: {model}")
                             return content
                     else:
+                        # Requirement 3: Log full HF API error responses
                         logger.warning(f"Model {model} returned status {response.status_code}")
                         logger.warning(f"Error body: {response.text}")
-                        # For Phi-3, if it fails with 400, it might be due to the system message or format
+
+                        # Fix for Phi-3 (Requirement 2 in prompt, specific fix)
                         if "Phi-3" in model and response.status_code == 400:
-                            logger.info(f"Retrying {model} with modified payload...")
-                            # Some Phi-3 deployments on HF might not support system role or expect it in a specific way
-                            # Let's try merging system message into the first user message
+                            logger.info(f"Retrying {model} with merged system/user messages...")
                             modified_messages = []
-                            sys_msg = ""
+                            sys_content = ""
                             for m in messages:
                                 if m["role"] == "system":
-                                    sys_msg += m["content"] + "\n\n"
-                                else:
-                                    if not modified_messages and m["role"] == "user":
-                                        modified_messages.append({"role": "user", "content": sys_msg + m["content"]})
+                                    sys_content += m["content"] + "\n\n"
+                                elif m["role"] == "user":
+                                    if not modified_messages:
+                                        modified_messages.append({"role": "user", "content": sys_content + m["content"]})
                                     else:
                                         modified_messages.append(m)
+                                else:
+                                    modified_messages.append(m)
                             
                             if modified_messages:
                                 payload["messages"] = modified_messages
@@ -116,21 +121,12 @@ class HFClient:
             image_bytes
         )
 
-    async def vision_analysis(self, image_data: str):
+    async def vision_analysis(self, image_data):
         """
         Analyze image from base64 data URI or raw bytes.
         """
-        import base64
-        
-        # Handle data URI format: data:image/jpeg;base64,...
-        if isinstance(image_data, str):
-            if "," in image_data:
-                image_data = image_data.split(",")[1]
-            image_bytes = base64.b64decode(image_data)
-        else:
-            image_bytes = image_data
-        
-        return await self.describe_image(image_bytes)
+        # We now use the gemini_vision_client which handles various formats
+        return await self.describe_image(image_data)
 
     async def analyze_image_intelligent(self, image_bytes, user_context: str = ""):
         """
