@@ -112,12 +112,6 @@
 
 I built Elysia on the principle of **Active Presence**. I believe software should feel alive. Her interface is designed to disappear into the background, leaving only a seamless connection between you and a machine that finally feels a bit more human.
 
-### Elysia Overview
-
-<h2>The Immersive Interface</h2>
-
-![Demo](./video/elysia.mp4)
-
 <h2> TODO: </h2>
 <h3>Enhance the Neural Architecture</h3>
 
