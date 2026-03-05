@@ -39,32 +39,30 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }
       action.play();
       mixer.update(0.01);
     } else {
-      // NO ANIMATIONS - pose arms straight down
-      console.log('No animations - arms down');
+
+      console.log('No animations, arms down');
       
       gltf.scene.traverse((obj: any) => {
         if (!obj.isBone) return;
         
         const name = obj.name.toLowerCase();
         
-        // Upper arms - rotate down to hang naturally
+
         if (name.includes('upperarm') || name.includes('upper_arm')) {
-          // Rotate around X to bring arm down from T-pose
-          // T-pose is arm horizontal (pointing at +X or -X)
-          // We want arm vertical pointing down (toward -Y)
-          obj.rotation.x = Math.PI / 2; // 90 degrees forward/down
-          obj.rotation.z = 0; // No twist
+
+          obj.rotation.x = Math.PI / 2; 
+          obj.rotation.z = 0; 
           obj.rotation.y = 0;
         }
         
-        // Lower arms - straight down too
+
         if (name.includes('lowerarm') || name.includes('lower_arm')) {
-          obj.rotation.x = 0; // Straight with upper arm
+          obj.rotation.x = 0; 
           obj.rotation.z = 0;
           obj.rotation.y = 0;
         }
         
-        // Hands - natural hanging
+
         if (name.includes('hand') && !name.includes('wrist')) {
           obj.rotation.x = 0;
           obj.rotation.y = 0;
