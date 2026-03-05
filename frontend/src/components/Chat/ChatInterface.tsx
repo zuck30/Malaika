@@ -22,7 +22,7 @@ interface ChatInterfaceProps {
   isCameraActive: boolean;
 }
 
-// Memoized message component for performance
+
 const ChatMessage = memo(({ msg, index }: { msg: Message; index: number }) => {
   const isUser = msg.role === 'user';
   
