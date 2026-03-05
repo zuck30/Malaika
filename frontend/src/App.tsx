@@ -10,7 +10,7 @@ import {
   setCameraActive,
   setVisionAnalysis
 } from './store/elysiaSlice';
-import ElysiaCharacter from './components/Character/ElysiaCharacter';
+import ElysiaCharacter from './components/Character/Elysia3D';
 import ChatInterface from './components/Chat/ChatInterface';
 import CameraFeed from './components/Camera/CameraFeed';
 import Webcam from 'react-webcam';
