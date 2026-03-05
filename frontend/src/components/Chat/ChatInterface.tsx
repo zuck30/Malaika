@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Camera, Mic, Smile, CheckCircle2 } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { Send, Camera, Mic, Smile, CheckCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EmojiPicker, { Theme, EmojiStyle } from 'emoji-picker-react';
 
@@ -7,6 +7,7 @@ interface Message {
   role: 'user' | 'elysia';
   content: string;
   timestamp?: string;
+  id?: string;
 }
 
 interface ChatInterfaceProps {
@@ -21,6 +22,48 @@ interface ChatInterfaceProps {
   isCameraActive: boolean;
 }
 
+// Memoized message component for performance
+const ChatMessage = memo(({ msg, index }: { msg: Message; index: number }) => {
+  const isUser = msg.role === 'user';
+  
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      className={`flex flex-col max-w-[85%] ${isUser ? 'items-end self-end' : 'items-start self-start'}`}
+    >
+      <div className="relative group">
+        <div
+          className={`px-5 py-3 rounded-[24px] text-[16px] font-medium leading-relaxed backdrop-blur-[12px] shadow-2xl border transition-all hover:scale-[1.02] ${
+            isUser
+              ? 'bg-snapchat-blue/40 border-white/20 text-white rounded-br-[4px]'
+              : 'bg-white/10 border-white/10 text-white rounded-bl-[4px]'
+          }`}
+        >
+          {msg.content}
+        </div>
+        
+        {/* Hover timestamp */}
+        <span className="absolute -top-6 left-0 text-[10px] text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+          {msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+
+      <div className={`mt-1 flex items-center space-x-1 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest opacity-60">
+          {msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+        {isUser && <CheckCircle2 size={12} className="text-snapchat-blue" />}
+      </div>
+    </motion.div>
+  );
+});
+
+ChatMessage.displayName = 'ChatMessage';
+
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
   onSendMessage,
@@ -34,171 +77,144 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll with smooth behavior
   useEffect(() => {
-    const scrollToBottom = () => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    };
-
-    // Multiple attempts to ensure scrolling works after animations
-    scrollToBottom();
-    const timeoutId = setTimeout(scrollToBottom, 100);
-    return () => clearTimeout(timeoutId);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }, [messages, isTyping]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Close emoji picker on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim()) {
-      onSendMessage(input);
-      setInput('');
+    if (!input.trim()) return;
+    
+    onSendMessage(input.trim());
+    setInput('');
+    setShowEmojiPicker(false);
+    inputRef.current?.focus();
+  }, [input, onSendMessage]);
+
+  const onEmojiClick = useCallback((emojiData: any) => {
+    const cursor = inputRef.current?.selectionStart || input.length;
+    const text = input.slice(0, cursor) + emojiData.emoji + input.slice(cursor);
+    setInput(text);
+    
+    // Restore cursor position
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      const newPos = cursor + emojiData.emoji.length;
+      inputRef.current?.setSelectionRange(newPos, newPos);
+    });
+  }, [input]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setShowEmojiPicker(false);
     }
   };
 
-  const getTimestamp = () => {
-    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const onEmojiClick = (emojiData: any) => {
-    const cursor = inputRef.current?.selectionStart || 0;
-    const text = input.slice(0, cursor) + emojiData.emoji + input.slice(cursor);
-    setInput(text);
-    setShowEmojiPicker(false);
-
-    // Maintain focus after injection
-    setTimeout(() => {
-      inputRef.current?.focus();
-      const newCursor = cursor + emojiData.emoji.length;
-      inputRef.current?.setSelectionRange(newCursor, newCursor);
-    }, 0);
-  };
-
-  const renderContent = (content: string) => {
-    const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
-    const parts = content.split(emojiRegex);
-
-    return parts.map((part, index) => {
-      if (emojiRegex.test(part)) {
-        return (
-          <motion.span
-            key={index}
-            initial={{ scale: 0 }}
-            animate={{ scale: [0, 1.2, 1] }}
-            transition={{ duration: 0.5, type: 'spring' }}
-            className="inline-block mx-0.5 text-[1.2em]"
-          >
-            {part}
-          </motion.span>
-        );
-      }
-      return part;
-    });
-  };
-
   return (
-    <div className="flex flex-col h-full w-full bg-transparent font-avenir items-center overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-transparent font-avenir items-center overflow-hidden relative">
       {/* Message Area */}
       <div 
         ref={scrollRef}
-        className="flex-1 w-full overflow-y-auto px-4 pt-10 scroll-smooth min-h-0"
+        className="flex-1 w-full overflow-y-auto px-4 pt-10 scroll-smooth min-h-0 scrollbar-hide"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        <div className="max-w-[700px] mx-auto flex flex-col space-y-6 pb-12">
-          <AnimatePresence mode='popLayout' initial={false}>
+        <div className="max-w-[700px] mx-auto flex flex-col space-y-4 pb-8">
+          <AnimatePresence mode="popLayout" initial={false}>
             {messages.map((msg, i) => (
-              <motion.div
-                key={i}
-                layout
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[85%] ${msg.role === 'user' ? 'self-end' : 'self-start'}`}
-              >
-                <div className="relative group">
-                  <div
-                    className={`px-5 py-3 rounded-[24px] text-[16px] font-medium leading-relaxed backdrop-blur-[12px] shadow-2xl border transition-all ${
-                      msg.role === 'user'
-                        ? 'bg-snapchat-blue/40 border-white/20 text-white rounded-br-[4px]'
-                        : 'bg-white/10 border-white/10 text-white rounded-bl-[4px]'
-                    }`}
-                  >
-                    {renderContent(msg.content)}
-                  </div>
-                </div>
-
-                <div className={`mt-2 flex items-center space-x-2 transition-opacity duration-300 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest opacity-60">
-                    {msg.timestamp || getTimestamp()}
-                  </span>
-                  {msg.role === 'user' && (
-                    <div className="flex items-center space-x-1">
-                      <CheckCircle2 size={10} className="text-snapchat-blue" />
-                    </div>
-                  )}
-                </div>
-              </motion.div>
+              <ChatMessage key={msg.id || i} msg={msg} index={i} />
             ))}
           </AnimatePresence>
 
-          {isTyping && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center space-x-2 bg-white/10 backdrop-blur-xl px-4 py-2 rounded-full w-fit border border-white/10"
-            >
-              <div className="flex space-x-1">
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ repeat: Infinity, duration: 0.6 }}
-                  className="w-1.5 h-1.5 bg-snapchat-yellow rounded-full"
-                />
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }}
-                  className="w-1.5 h-1.5 bg-snapchat-yellow rounded-full"
-                />
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }}
-                  className="w-1.5 h-1.5 bg-snapchat-yellow rounded-full"
-                />
-              </div>
-              <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Elysia is thinking</span>
-            </motion.div>
-          )}
+          {/* Typing Indicator */}
+          <AnimatePresence>
+            {isTyping && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="flex items-center space-x-2 bg-white/10 backdrop-blur-xl px-4 py-2 rounded-full w-fit border border-white/10 self-start"
+              >
+                <div className="flex space-x-1">
+                  {[0, 0.15, 0.3].map((delay) => (
+                    <motion.div
+                      key={delay}
+                      animate={{ y: [0, -4, 0] }}
+                      transition={{ repeat: Infinity, duration: 0.6, delay }}
+                      className="w-1.5 h-1.5 bg-snapchat-yellow rounded-full"
+                    />
+                  ))}
+                </div>
+                <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">
+                  Elysia is typing
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
       
-      {/* Snapchat Floating Input Bar */}
-      <div className="p-6 pb-10 w-full max-w-[700px] relative">
+      {/* Input Area */}
+      <div className="p-4 pb-8 w-full max-w-[700px] relative z-10">
         <AnimatePresence>
           {showEmojiPicker && (
             <motion.div
+              ref={pickerRef}
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.9 }}
-              className="absolute bottom-full mb-4 left-0 z-50"
+              className="absolute bottom-full mb-2 left-0 z-50 shadow-2xl rounded-xl overflow-hidden"
             >
+              <div className="bg-zinc-900 p-2 rounded-t-xl flex justify-between items-center">
+                <span className="text-xs text-zinc-400 ml-2">Pick an emoji</span>
+                <button 
+                  onClick={() => setShowEmojiPicker(false)}
+                  className="p-1 hover:bg-white/10 rounded"
+                >
+                  <X size={16} className="text-zinc-400" />
+                </button>
+              </div>
               <EmojiPicker
                 onEmojiClick={onEmojiClick}
                 theme={Theme.DARK}
                 emojiStyle={EmojiStyle.NATIVE}
                 lazyLoadEmojis={true}
+                width={350}
+                height={400}
               />
             </motion.div>
           )}
         </AnimatePresence>
 
-        <form onSubmit={handleSubmit} className="flex items-center space-x-3">
-          <div className="flex items-center bg-white/10 backdrop-blur-2xl border border-white/10 rounded-full px-3 py-1 flex-1 shadow-2xl transition-all focus-within:border-white/20">
+        <form onSubmit={handleSubmit} className="relative">
+          <div className="flex items-center bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-full px-4 py-3 shadow-2xl transition-all focus-within:border-snapchat-blue/50 focus-within:bg-zinc-900/90">
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className={`p-2 transition-colors ${showEmojiPicker ? 'text-snapchat-yellow' : 'text-white/70 hover:text-white'}`}
+              className={`p-2 rounded-full transition-all ${showEmojiPicker ? 'text-snapchat-yellow bg-white/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
             >
-              <Smile size={24} />
+              <Smile size={22} />
             </button>
 
             <input
@@ -206,38 +222,51 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Chat with Elysia..."
-              className="flex-1 bg-transparent border-none py-4 px-3 text-white placeholder:text-zinc-500 focus:outline-none font-medium text-[16px]"
+              onKeyDown={handleKeyDown}
+              placeholder={isListening ? "Listening..." : "Chat with Elysia..."}
+              disabled={isListening}
+              className="flex-1 bg-transparent border-none py-2 px-4 text-white placeholder:text-zinc-500 focus:outline-none font-medium text-[16px] disabled:opacity-50"
             />
 
-            <div className="flex items-center space-x-2 pr-1">
-              <button
+            <div className="flex items-center space-x-1">
+              <motion.button
                 type="button"
                 onClick={() => setIsListening(!isListening)}
-                className={`p-2 rounded-full transition-colors ${isListening ? 'text-red-500 bg-red-500/20 animate-pulse' : 'text-white/70 hover:text-white'}`}
-              >
-                <Mic size={24} />
-              </button>
-
-              <button
-                type="button"
-                onClick={toggleCamera}
-                className={`p-2 transition-colors ${isCameraActive ? 'text-snapchat-yellow' : 'text-white/70 hover:text-white'}`}
-              >
-                <Camera size={24} />
-              </button>
-
-              <motion.button
                 whileTap={{ scale: 0.9 }}
-                type="submit"
-                disabled={!input.trim()}
-                className={`p-2 transition-all ${
-                  input.trim()
-                    ? 'text-snapchat-blue scale-110'
-                    : 'text-zinc-600'
+                className={`p-2.5 rounded-full transition-all ${
+                  isListening 
+                    ? 'text-red-500 bg-red-500/20 animate-pulse' 
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <Send size={24} fill={input.trim() ? "currentColor" : "none"} />
+                <Mic size={20} />
+              </motion.button>
+
+              <motion.button
+                type="button"
+                onClick={toggleCamera}
+                whileTap={{ scale: 0.9 }}
+                className={`p-2.5 rounded-full transition-all ${
+                  isCameraActive 
+                    ? 'text-snapchat-yellow bg-white/10' 
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Camera size={20} />
+              </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.85 }}
+                whileHover={{ scale: 1.05 }}
+                type="submit"
+                disabled={!input.trim() || isListening}
+                className={`p-3 rounded-full ml-1 transition-all ${
+                  input.trim() && !isListening
+                    ? 'bg-snapchat-blue text-white shadow-lg shadow-snapchat-blue/25'
+                    : 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                }`}
+              >
+                <Send size={18} fill="currentColor" />
               </motion.button>
             </div>
           </div>
@@ -247,4 +276,4 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   );
 };
 
-export default ChatInterface;
+export default memo(ChatInterface);
