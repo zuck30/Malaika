@@ -29,4 +29,4 @@ __pycache__/
 *.pt
 
 
-backend/chroma_db/chroma_db.sqlite
+backend/chroma_db/chroma.sqlite
