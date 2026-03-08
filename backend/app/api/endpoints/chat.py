@@ -57,7 +57,7 @@ async def vision_chat(
     """
     # DEBUG: Log exactly what we received
     logger.info("=" * 50)
-    logger.info(f"📥 Vision Chat Request Received")
+    logger.info(f" Vision Chat Request Received")
     logger.info(f"Message: '{message}'")
     logger.info(f"File present: {file is not None}")
     if file:
@@ -71,7 +71,7 @@ async def vision_chat(
     if file and file.filename:
         try:
             raw_bytes = await file.read()
-            logger.info(f"📸 Read {len(raw_bytes)} bytes from file")
+            logger.info(f" Read {len(raw_bytes)} bytes from file")
             
             # Log first few bytes for debugging (if it's an image, this should show JPEG/PNG headers)
             if raw_bytes and len(raw_bytes) > 10:
@@ -84,18 +84,18 @@ async def vision_chat(
                     
                     # Use Local Vision
                     description = await local_vision_client.analyze_image_async(image_bytes)
-                    logger.info(f"✅ Local vision success: {description[:100]}...")
+                    logger.info(f" Local vision success: {description[:100]}...")
                 except Exception as e:
-                    logger.error(f"❌ Vision processing error: {e}")
+                    logger.error(f" Vision processing error: {e}")
                     description = None
             else:
-                logger.warning(f"⚠️ Image too small or empty: {len(raw_bytes) if raw_bytes else 0} bytes")
+                logger.warning(f" Image too small or empty: {len(raw_bytes) if raw_bytes else 0} bytes")
                 description = None
         except Exception as e:
-            logger.error(f"❌ Error reading file: {e}")
+            logger.error(f" Error reading file: {e}")
             description = None
     else:
-        logger.info("ℹ️ No image file in request - this is a text-only message")
+        logger.info(" No image file in request - this is a text-only message")
         description = None
     
     # Retrieve context from memory
@@ -142,7 +142,7 @@ Pick one style and respond playfully. Never say "Nothing appears on the feed" - 
     # Generate response
     try:
         response_text = await hf_client.chat_completion(messages)
-        logger.info(f"💬 Response generated: {response_text[:100]}...")
+        logger.info(f" Response generated: {response_text[:100]}...")
 
         # Store in memory
         if message != "[VISION_ONLY]":
@@ -150,7 +150,7 @@ Pick one style and respond playfully. Never say "Nothing appears on the feed" - 
         memory_manager.add_memory(f"Elysia: {response_text}")
 
     except Exception as e:
-        logger.error(f"❌ Error generating response: {e}")
+        logger.error(f"Error generating response: {e}")
         response_text = "I'm here with you. Tell me more about what's on your mind."
 
     return {

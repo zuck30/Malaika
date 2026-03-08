@@ -56,5 +56,4 @@ class TTSEngine:
             logger.error(f"TTS Error: {e}")
             return None
 
-# THIS IS THE MISSING LINE THAT CAUSED YOUR ERROR
 tts_engine = TTSEngine()
