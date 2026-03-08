@@ -76,7 +76,7 @@ class HFClient:
             payload = {
                 "model": model,
                 "messages": messages,
-                "max_tokens": 150,
+                "max_tokens": 300,
                 "temperature": 0.8,
                 "top_p": 0.9
             }
