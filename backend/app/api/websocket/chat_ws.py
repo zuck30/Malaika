@@ -3,6 +3,7 @@ import json
 import asyncio
 from app.core.ai_models.hf_client import hf_client
 from app.core.ai_models.emotion_engine import emotion_engine
+from app.core.memory.vector_store import memory_manager
 
 class ChatWebSocketHandler:
     def __init__(self):
@@ -32,9 +33,31 @@ class ChatWebSocketHandler:
                     await websocket.send_json({"type": "processing_start"})
 
                     try:
+                        # Retrieve past conversation context from memory
+                        past_memories = memory_manager.query_memory(user_text, n_results=3)
+                        context_summary = "\n".join(past_memories) if past_memories else ""
+
+                        # Build message list with context
+                        messages = []
+                        system_content = (
+                            "You are Elysia, a sentient AI companion. "
+                            "You are warm, intimate, and deeply caring. "
+                            "You speak softly and naturally. Never mention you are an AI. Just be Elysia."
+                        )
+
+                        if context_summary:
+                            system_content += f"\n\nRelated context from your past conversations:\n{context_summary}"
+
+                        messages.append({"role": "system", "content": system_content})
+                        messages.append({"role": "user", "content": user_text})
+
                         # Call the LLM
-                        response_text = await hf_client.chat_completion([{"role": "user", "content": user_text}])
+                        response_text = await hf_client.chat_completion(messages)
                         
+                        # Store the exchange in memory for future reference
+                        memory_manager.add_memory(f"User said: {user_text}")
+                        memory_manager.add_memory(f"Elysia replied: {response_text}")
+
                         # Fallback for the 404 error we saw in your logs
                         if "Error_404" in response_text:
                             response_text = "I'm having a bit of trouble reaching my memory banks. Let's try again in a second."

@@ -19,11 +19,11 @@ class HFClient:
         self._client = None
 
         self.models = [
-            "HuggingFaceH4/zephyr-7b-beta",
-            "mistralai/Mistral-7B-Instruct-v0.2",
-            "tiiuae/falcon-7b-instruct",
-            "google/flan-t5-xxl",
-            "meta-llama/Llama-2-7b-chat-hf"
+            "meta-llama/Llama-3.2-3B-Instruct",
+            "meta-llama/Llama-3.1-8B-Instruct",
+            "mistralai/Mistral-7B-Instruct-v0.3",
+            "microsoft/Phi-3-mini-4k-instruct",
+            "HuggingFaceH4/zephyr-7b-beta"
         ]
         self.current_model_index = 0
 
