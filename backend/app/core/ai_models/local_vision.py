@@ -29,19 +29,19 @@ class LocalVisionClient:
             model_id = "vikhyatk/moondream2"
             revision = "2024-03-06"
 
-            # 1. Load tokenizer
+            #  Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_id,
                 revision=revision,
                 trust_remote_code=True
             )
 
-            # 2. Determine a safe pad_token_id
+            #  Determine a safe pad_token_id
             eos_id = getattr(self.tokenizer, "eos_token_id", 0)
             if eos_id is None:
                 eos_id = 0
 
-            # 3. Apply a temporary monkeypatch to handle configuration quirks in remote code
+            # Apply a temporary monkeypatch to handle configuration quirks in remote code
             orig_init = transformers.modeling_utils.PreTrainedModel.__init__
             
             def patched_init(model_instance, config, *args, **kwargs):
@@ -76,7 +76,7 @@ class LocalVisionClient:
             transformers.modeling_utils.PreTrainedModel.__init__ = patched_init
 
             try:
-                # 4. Load the configuration
+                # Load the configuration
                 config = AutoConfig.from_pretrained(
                     model_id,
                     revision=revision,
@@ -87,7 +87,7 @@ class LocalVisionClient:
                 if not hasattr(config, "_attn_implementation"):
                     config._attn_implementation = "eager"
 
-                # 5. Load the model with the modified config and monkeypatch active
+                # Load the model with the modified config and monkeypatch active
                 self.model = AutoModelForCausalLM.from_pretrained(
                     model_id,
                     config=config,
