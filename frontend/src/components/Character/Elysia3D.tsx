@@ -13,9 +13,7 @@ interface ElysiaCharacterProps {
 function Loader() {
   return (
     <Html center>
-      <div className="text-white text-xl font-bold bg-black/50 p-4 rounded">
-        Loading Elysia...
-      </div>
+      <div className="text-white text-xl font-bold bg-black/50 p-4 rounded">Loading Elysia...</div>
     </Html>
   );
 }
@@ -39,29 +37,22 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }
       action.play();
       mixer.update(0.01);
     } else {
-
       console.log('No animations, arms down');
-      
       gltf.scene.traverse((obj: any) => {
         if (!obj.isBone) return;
-        
         const name = obj.name.toLowerCase();
-        
 
         if (name.includes('upperarm') || name.includes('upper_arm')) {
-
-          obj.rotation.x = Math.PI / 2; 
-          obj.rotation.z = 0; 
-          obj.rotation.y = 0;
-        }
-        
-
-        if (name.includes('lowerarm') || name.includes('lower_arm')) {
-          obj.rotation.x = 0; 
+          obj.rotation.x = Math.PI / 2;
           obj.rotation.z = 0;
           obj.rotation.y = 0;
         }
-        
+
+        if (name.includes('lowerarm') || name.includes('lower_arm')) {
+          obj.rotation.x = 0;
+          obj.rotation.z = 0;
+          obj.rotation.y = 0;
+        }
 
         if (name.includes('hand') && !name.includes('wrist')) {
           obj.rotation.x = 0;
@@ -96,7 +87,7 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }
     group.position.y = -1.5 + Math.sin(time * 1.5) * 0.01;
 
     const baseRotationY = Math.PI;
-    const targetRotY = baseRotationY + (mousePos.x * 0.3);
+    const targetRotY = baseRotationY + mousePos.x * 0.3;
     const targetRotX = mousePos.y * 0.15;
 
     group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetRotY, 0.05);
@@ -105,7 +96,7 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }
     if (isSpeaking) {
       group.position.y += Math.sin(time * 12) * 0.015;
     }
-    
+
     if (isListening) {
       group.rotation.z = Math.sin(time * 2.5) * 0.03;
     } else {
@@ -116,13 +107,7 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }
   });
 
   return (
-    <primitive 
-      ref={modelRef}
-      object={gltf.scene} 
-      scale={1.3} 
-      position={[0, -1.5, 0]} 
-      rotation={[0, Math.PI, 0]}
-    />
+    <primitive ref={modelRef} object={gltf.scene} scale={1.3} position={[0, -1.5, 0]} rotation={[0, Math.PI, 0]} />
   );
 };
 
@@ -131,23 +116,24 @@ const ElysiaCharacter3D: React.FC<ElysiaCharacterProps> = (props) => {
     <div className="relative w-full h-full min-h-[600px] bg-transparent">
       <Canvas
         camera={{ position: [0, 0, 4], fov: 45 }}
-        gl={{ 
-          alpha: true, 
-          antialias: true, 
-          outputColorSpace: THREE.SRGBColorSpace 
+        gl={{
+          alpha: true,
+          antialias: true,
+          outputColorSpace: THREE.SRGBColorSpace,
         }}
       >
-        <ambientLight intensity={0.7} />
-        <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} />
-        <pointLight position={[-10, 5, -10]} intensity={0.5} />
-        
+        {/* Brighter lights for light background */}
+        <ambientLight intensity={1.2} />
+        <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1.5} />
+        <pointLight position={[-10, 5, -10]} intensity={0.8} />
+
         <Suspense fallback={<Loader />}>
           <ElysiaModel {...props} />
-          <Environment preset="city" />
-          <OrbitControls 
-            enableZoom={true} 
+          <Environment preset="apartment" />
+          <OrbitControls
+            enableZoom={true}
             enablePan={false}
-            target={[0, 0, 0]} 
+            target={[0, 0, 0]}
             minPolarAngle={Math.PI / 3}
             maxPolarAngle={Math.PI / 1.5}
           />
