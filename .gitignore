@@ -27,3 +27,6 @@ __pycache__/
 # Large model files
 *.bin
 *.pt
+
+
+backend/chroma_db/chroma_db.sqlite
