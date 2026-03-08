@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from './store';
-import { 
-  addMessage, 
-  setEmotion, 
-  setSpeaking, 
-  setListening, 
-  setTyping, 
+import {
+  addMessage,
+  setEmotion,
+  setSpeaking,
+  setListening,
+  setTyping,
   setCameraActive,
-  setVisionAnalysis
+  setVisionAnalysis,
 } from './store/elysiaSlice';
 import ElysiaCharacter from './components/Character/Elysia3D';
 import ChatInterface from './components/Chat/ChatInterface';
@@ -23,20 +23,19 @@ const WS_BASE = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
-  const { messages, emotion, isSpeaking, isListening, isTyping, cameraActive, visionAnalysis } = useSelector((state: RootState) => state.elysia);
+  const { messages, emotion, isSpeaking, isListening, isTyping, cameraActive, visionAnalysis } =
+    useSelector((state: RootState) => state.elysia);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const webcamRef = React.useRef<Webcam>(null);
-  
-  // Track last analysis to avoid duplicate comments
+
   const lastAnalysisRef = useRef<string>('');
-  // Track if we're currently processing a vision response
   const isProcessingVisionRef = useRef<boolean>(false);
 
   const handleSpeak = async (text: string) => {
     try {
       const response = await axios.get(`${API_BASE}/api/chat/tts`, {
         params: { text },
-        responseType: 'blob'
+        responseType: 'blob',
       });
       const url = URL.createObjectURL(response.data);
       const audio = new Audio(url);
@@ -44,7 +43,7 @@ const App: React.FC = () => {
       audio.onended = () => dispatch(setSpeaking(false));
       audio.play();
     } catch (err) {
-      console.error("TTS failed", err);
+      console.error('TTS failed', err);
     }
   };
 
@@ -62,7 +61,7 @@ const App: React.FC = () => {
       dispatch(setTyping(false));
       handleSpeak(elysia_response);
     } catch (err) {
-      console.error("Voice processing failed", err);
+      console.error('Voice processing failed', err);
       dispatch(setTyping(false));
     }
   };
@@ -87,8 +86,6 @@ const App: React.FC = () => {
         dispatch(setTyping(false));
         dispatch(addMessage({ role: 'elysia', content: data.text }));
         dispatch(setEmotion(data.emotion));
-
-        // Handle TTS
         handleSpeak(data.text);
       }
     };
@@ -105,7 +102,7 @@ const App: React.FC = () => {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
         try {
-          const blob = await fetch(imageSrc).then(r => r.blob());
+          const blob = await fetch(imageSrc).then((r) => r.blob());
           const formData = new FormData();
           formData.append('message', text);
           formData.append('file', blob, 'vision.jpg');
@@ -119,7 +116,7 @@ const App: React.FC = () => {
           handleSpeak(elysia_response);
           return;
         } catch (err) {
-          console.error("Vision chat failed, falling back to standard chat", err);
+          console.error('Vision chat failed, falling back to standard chat', err);
         }
       }
     }
@@ -129,22 +126,20 @@ const App: React.FC = () => {
 
   const handleFrame = async (imageSrc: string) => {
     if (isProcessingVisionRef.current) return;
-    
+
     const fetchRes = await fetch(imageSrc);
     const blob = await fetchRes.blob();
-    
+
     isProcessingVisionRef.current = true;
-    
+
     try {
-      // Use FormData to send image directly to vision-chat with empty message
       const formData = new FormData();
-      formData.append('message', '[VISION_ONLY]'); // Special flag to indicate vision-only
+      formData.append('message', '[VISION_ONLY]');
       formData.append('file', blob, 'frame.jpg');
 
       const response = await axios.post(`${API_BASE}/api/chat/vision-chat`, formData);
       const { response: elysia_response, emotion: new_emotion, visual_description } = response.data;
 
-      // Only speak if it's a new observation
       if (visual_description !== lastAnalysisRef.current) {
         lastAnalysisRef.current = visual_description;
         dispatch(setVisionAnalysis(visual_description));
@@ -152,9 +147,8 @@ const App: React.FC = () => {
         if (new_emotion) dispatch(setEmotion(new_emotion));
         handleSpeak(elysia_response);
       }
-      
     } catch (err) {
-      console.error("Vision frame processing failed", err);
+      console.error('Vision frame processing failed', err);
     } finally {
       isProcessingVisionRef.current = false;
     }
@@ -162,58 +156,48 @@ const App: React.FC = () => {
 
   return (
     <div
-      className="h-screen w-full bg-[#08080a] text-zinc-100 flex flex-col overflow-hidden font-avenir selection:bg-snapchat-blue/30 relative"
+      className="h-screen w-full bg-gradient-to-br from-[#f0f3f8] via-[#f8faff] to-[#f0f5fa] text-[#1e2b3c] flex flex-col overflow-hidden font-avenir selection:bg-sky-300/30 relative"
       style={{ contain: 'content' }}
     >
-      {/* Cinematic Background */}
-      <div className="noise opacity-20" />
-      <div className="fixed inset-0 bg-gradient-to-b from-black via-zinc-900 to-black opacity-80" />
+      {/* Subtle noise overlay */}
+      <div className="noise opacity-[0.015]" />
 
-      {/* Animated Glows */}
+      {/* Cool blue animated glow */}
       <motion.div
         animate={{
           opacity: [0.1, 0.2, 0.1],
           scale: [1, 1.2, 1],
         }}
-        transition={{ duration: 8, repeat: Infinity }}
-        className="fixed -top-1/4 -left-1/4 w-full h-full bg-snapchat-blue/20 blur-[120px] rounded-full pointer-events-none"
+        transition={{ duration: 10, repeat: Infinity }}
+        className="fixed -top-1/4 -left-1/4 w-full h-full bg-sky-200/30 blur-[150px] rounded-full pointer-events-none"
       />
 
-      {/* Character Visualization - Central Focus / Background */}
+      {/* Character Visualization – slightly darkened to stand out on light background */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-        <div className="w-full h-full max-w-4xl opacity-60 transition-opacity duration-700">
-          <ElysiaCharacter
-            emotion={emotion}
-            isSpeaking={isSpeaking}
-            isListening={isListening || isTyping}
-          />
+        <div className="w-full h-full max-w-4xl opacity-70 mix-blend-multiply transition-opacity duration-700">
+          <ElysiaCharacter emotion={emotion} isSpeaking={isSpeaking} isListening={isListening || isTyping} />
         </div>
       </div>
 
-      {/* Main Content Area - Floating Overlay */}
+      {/* Main Content */}
       <main className="fixed inset-0 z-10 flex flex-col overflow-hidden">
-        {/* Invisible Camera Feed */}
-        <CameraFeed
-          isActive={cameraActive}
-          onFrame={handleFrame}
-          isHidden={true}
-          webcamRef={webcamRef}
-        />
+        {/* Hidden Camera Feed */}
+        <CameraFeed isActive={cameraActive} onFrame={handleFrame} isHidden={true} webcamRef={webcamRef} />
 
-        {/* Vision Status Indicator */}
+        {/* Vision Active Indicator */}
         <AnimatePresence>
           {cameraActive && (
             <motion.div
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.5 }}
-              className="absolute top-6 right-6 z-50 flex items-center space-x-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10"
+              className="absolute top-6 right-6 z-50 flex items-center space-x-2 bg-white/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/70 shadow-lg"
             >
               <div className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Vision Active</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-sky-600">Vision Active</span>
             </motion.div>
           )}
         </AnimatePresence>
