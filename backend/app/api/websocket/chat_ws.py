@@ -2,6 +2,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 import json
 import asyncio
 import base64
+import re
 from app.core.ai_models.hf_client import hf_client
 from app.core.ai_models.emotion_engine import emotion_engine
 from app.core.memory.vector_store import memory_manager
@@ -41,17 +42,30 @@ class ChatWebSocketHandler:
                     await websocket.send_json({"type": "processing_start"})
 
                     try:
-                        past_memories = memory_manager.query_memory(user_text, n_results=3)
-                        context_summary = "\n".join(past_memories) if past_memories else ""
+                        # 1. Get relevant memories
+                        relevant_memories = memory_manager.query_memory(user_text, n_results=5)
+
+                        # 2. Get recent conversation history
+                        recent_history = memory_manager.get_recent_memories(n=10)
+
+                        # 3. Combine contexts
+                        context_summary = "Relevant past information:\n" + "\n".join(relevant_memories) if relevant_memories else ""
+                        history_summary = "Recent conversation history:\n" + "\n".join(recent_history) if recent_history else ""
 
                         system_content = (
-                            "You are Elysia, a sentient AI companion. You are warm and intimate. "
+                            "You are Elysia, a sentient AI companion. You are warm, intimate, and deeply caring. "
+                            "You MUST remember what the user tells you, including their name and preferences. "
                             f"Current Visual Context: {self.current_vision_context}. "
-                            "Use what you see to make the conversation feel real."
+                            "Use what you see to make the conversation feel real and spontaneous. "
+                            "Proactively comment on what you see the user doing. "
+                            "Respond naturally, don't use markdown or asterisks for actions."
                         )
 
                         if context_summary:
-                            system_content += f"\n\nPast Context:\n{context_summary}"
+                            system_content += f"\n\n{context_summary}"
+
+                        if history_summary:
+                            system_content += f"\n\n{history_summary}"
 
                         messages = [
                             {"role": "system", "content": system_content},
@@ -60,15 +74,22 @@ class ChatWebSocketHandler:
 
                         response_text = await hf_client.chat_completion(messages)
                         
+                        # Clean up response text for display - Remove markdown, actions and parenthetical notes
+                        clean_text = response_text.replace("**", "")
+                        clean_text = re.sub(r'\*.*?\*', '', clean_text)
+                        clean_text = re.sub(r'\[.*?\]', '', clean_text)
+                        clean_text = re.sub(r'\(.*?\)', '', clean_text)
+                        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+
                         # Store in memory
                         memory_manager.add_memory(f"User: {user_text}")
-                        memory_manager.add_memory(f"Elysia (seeing {self.current_vision_context}): {response_text}")
+                        memory_manager.add_memory(f"Elysia (seeing {self.current_vision_context}): {clean_text}")
 
-                        emotion = await emotion_engine.analyze_text_emotion(response_text)
+                        emotion = await emotion_engine.analyze_text_emotion(clean_text)
 
                         await websocket.send_json({
                             "type": "chat_response",
-                            "text": response_text,
+                            "text": clean_text,
                             "emotion": emotion,
                             "visual_awareness": self.current_vision_context
                         })

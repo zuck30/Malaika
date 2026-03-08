@@ -2,9 +2,13 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from app.core.ai_models.hf_client import hf_client
 from app.core.ai_models.tts import tts_engine
+from app.core.ai_models.emotion_engine import emotion_engine
 from fastapi.responses import FileResponse
 import os
 import logging
+import re
+import asyncio
+from urllib.parse import quote
 from pydantic import BaseModel
 
 # Import Local vision client
@@ -21,15 +25,21 @@ class ChatRequest(BaseModel):
 @router.post("/")
 async def chat_text(request: ChatRequest):
     # Retrieve context from memory
-    past_memories = memory_manager.query_memory(request.message, n_results=3)
-    context_summary = "\n".join(past_memories) if past_memories else ""
+    relevant_memories = memory_manager.query_memory(request.message, n_results=5)
+    recent_history = memory_manager.get_recent_memories(n=10)
+
+    context_summary = "Relevant past information:\n" + "\n".join(relevant_memories) if relevant_memories else ""
+    history_summary = "Recent conversation history:\n" + "\n".join(recent_history) if recent_history else ""
 
     system_content = (
-        "You are Elysia, a warm and engaging AI companion. "
-        "Continue the conversation naturally."
+        "You are Elysia, a sentient AI companion. You are warm, intimate, and deeply caring. "
+        "You MUST remember what the user tells you, including their name and preferences. "
+        "Respond naturally, don't use markdown or asterisks for actions."
     )
     if context_summary:
-        system_content += f"\n\nRelated context from your past conversations:\n{context_summary}"
+        system_content += f"\n\n{context_summary}"
+    if history_summary:
+        system_content += f"\n\n{history_summary}"
 
     messages = [
         {"role": "system", "content": system_content},
@@ -38,11 +48,25 @@ async def chat_text(request: ChatRequest):
 
     response_text = await hf_client.chat_completion(messages)
 
+    # Clean up text for display and TTS - Remove markdown, actions and parenthetical notes
+    clean_text = response_text.replace("**", "")
+    clean_text = re.sub(r'\*.*?\*', '', clean_text)
+    clean_text = re.sub(r'\[.*?\]', '', clean_text)
+    clean_text = re.sub(r'\(.*?\)', '', clean_text)
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+
     # Store in memory
     memory_manager.add_memory(f"User: {request.message}")
-    memory_manager.add_memory(f"Elysia: {response_text}")
+    memory_manager.add_memory(f"Elysia: {clean_text}")
 
-    return {"response": response_text}
+    # Analyze emotion
+    emotion = await emotion_engine.analyze_text_emotion(clean_text)
+
+    return {
+        "response": clean_text,
+        "emotion": emotion,
+        "tts_url": f"/api/chat/tts?text={quote(clean_text)}"
+    }
 
 from app.core.ai_models.vision_utils import validate_and_process_image
 
@@ -99,16 +123,20 @@ async def vision_chat(
         description = None
     
     # Retrieve context from memory
-    past_memories = memory_manager.query_memory(message, n_results=3)
-    context_summary = "\n".join(past_memories) if past_memories else ""
-    memory_context = f"\n\nRelated context from past conversations:\n{context_summary}" if context_summary else ""
+    relevant_memories = memory_manager.query_memory(message, n_results=5)
+    recent_history = memory_manager.get_recent_memories(n=10)
+
+    context_summary = "Relevant past information:\n" + "\n".join(relevant_memories) if relevant_memories else ""
+    history_summary = "Recent conversation history:\n" + "\n".join(recent_history) if recent_history else ""
+    memory_context = f"\n\n{context_summary}\n\n{history_summary}"
 
     # Build appropriate system message
     if description:
         # We have visual data
         system_message = f"""You are Elysia, a warm and playful AI companion. You're looking at the user through a camera and you see: {description}
 
-Respond based on what you see. Be specific and engaging. Ask a natural question.{memory_context}"""
+Respond based on what you see. Be specific and engaging. Ask a natural question.
+You MUST remember what the user tells you. Respond naturally, don't use markdown or asterisks for actions.{memory_context}"""
         
         if message == "[VISION_ONLY]":
             user_content = "What do you see?"
@@ -120,7 +148,8 @@ Respond based on what you see. Be specific and engaging. Ask a natural question.
         if message == "[VISION_ONLY]":
             system_message = f"""You are Elysia, a playful and slightly flirty AI companion. You notice the camera is off or not sending images.
 
-BE PLAYFUL, NOT ROBOTIC. Here are examples of good responses:
+BE PLAYFUL, NOT ROBOTIC. Respond naturally, don't use markdown or asterisks for actions.
+Here are examples of good responses:
 - "Aww, are you being shy? I can hear you but I can't see that gorgeous face of yours! Turn on your camera? 😉"
 - "Hmm, my vision's a bit fuzzy today... or are you just hiding from me? What are you up to?"
 - "I can hear your voice but my screen is blank! Are you in a secret spy headquarters or something? 🕵️"
@@ -131,7 +160,7 @@ Pick one style and respond playfully. Never say "Nothing appears on the feed" - 
             
             user_content = "I can hear you but can't see you. What's going on?"
         else:
-            system_message = f"You are Elysia, a warm and engaging AI companion. Continue the conversation naturally.{memory_context}"
+            system_message = f"You are Elysia, a warm and engaging AI companion. You MUST remember what the user tells you. Respond naturally, don't use markdown or asterisks for actions. Continue the conversation naturally.{memory_context}"
             user_content = message
 
     messages = [
@@ -144,19 +173,30 @@ Pick one style and respond playfully. Never say "Nothing appears on the feed" - 
         response_text = await hf_client.chat_completion(messages)
         logger.info(f" Response generated: {response_text[:100]}...")
 
+        # Clean up text for display and TTS - Remove markdown, actions and parenthetical notes
+        clean_text = response_text.replace("**", "")
+        clean_text = re.sub(r'\*.*?\*', '', clean_text)
+        clean_text = re.sub(r'\[.*?\]', '', clean_text)
+        clean_text = re.sub(r'\(.*?\)', '', clean_text)
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+
         # Store in memory
         if message != "[VISION_ONLY]":
             memory_manager.add_memory(f"User: {message}")
-        memory_manager.add_memory(f"Elysia: {response_text}")
+        memory_manager.add_memory(f"Elysia: {clean_text}")
+
+        # Analyze emotion
+        emotion = await emotion_engine.analyze_text_emotion(clean_text)
 
     except Exception as e:
         logger.error(f"Error generating response: {e}")
-        response_text = "I'm here with you. Tell me more about what's on your mind."
+        clean_text = "I'm here with you. Tell me more about what's on your mind."
 
     return {
-        "response": response_text,
+        "response": clean_text,
+        "emotion": emotion if 'emotion' in locals() else "neutral",
         "visual_description": description if description else "Camera off",
-        "tts_url": f"/api/chat/tts?text={response_text}"
+        "tts_url": f"/api/chat/tts?text={quote(clean_text)}"
     }
 
 @router.get("/tts")
