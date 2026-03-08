@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 # Import Local vision client
 from app.core.ai_models.local_vision import local_vision_client
+from app.core.memory.vector_store import memory_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,8 +20,28 @@ class ChatRequest(BaseModel):
 
 @router.post("/")
 async def chat_text(request: ChatRequest):
-    messages = [{"role": "user", "content": request.message}]
+    # Retrieve context from memory
+    past_memories = memory_manager.query_memory(request.message, n_results=3)
+    context_summary = "\n".join(past_memories) if past_memories else ""
+
+    system_content = (
+        "You are Elysia, a warm and engaging AI companion. "
+        "Continue the conversation naturally."
+    )
+    if context_summary:
+        system_content += f"\n\nRelated context from your past conversations:\n{context_summary}"
+
+    messages = [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": request.message}
+    ]
+
     response_text = await hf_client.chat_completion(messages)
+
+    # Store in memory
+    memory_manager.add_memory(f"User: {request.message}")
+    memory_manager.add_memory(f"Elysia: {response_text}")
+
     return {"response": response_text}
 
 from app.core.ai_models.vision_utils import validate_and_process_image
@@ -77,12 +98,17 @@ async def vision_chat(
         logger.info("ℹ️ No image file in request - this is a text-only message")
         description = None
     
+    # Retrieve context from memory
+    past_memories = memory_manager.query_memory(message, n_results=3)
+    context_summary = "\n".join(past_memories) if past_memories else ""
+    memory_context = f"\n\nRelated context from past conversations:\n{context_summary}" if context_summary else ""
+
     # Build appropriate system message
     if description:
         # We have visual data
         system_message = f"""You are Elysia, a warm and playful AI companion. You're looking at the user through a camera and you see: {description}
 
-Respond based on what you see. Be specific and engaging. Ask a natural question."""
+Respond based on what you see. Be specific and engaging. Ask a natural question.{memory_context}"""
         
         if message == "[VISION_ONLY]":
             user_content = "What do you see?"
@@ -92,7 +118,7 @@ Respond based on what you see. Be specific and engaging. Ask a natural question.
     else:
         # No visual data - be playful and flirty
         if message == "[VISION_ONLY]":
-            system_message = """You are Elysia, a playful and slightly flirty AI companion. You notice the camera is off or not sending images.
+            system_message = f"""You are Elysia, a playful and slightly flirty AI companion. You notice the camera is off or not sending images.
 
 BE PLAYFUL, NOT ROBOTIC. Here are examples of good responses:
 - "Aww, are you being shy? I can hear you but I can't see that gorgeous face of yours! Turn on your camera? 😉"
@@ -101,11 +127,11 @@ BE PLAYFUL, NOT ROBOTIC. Here are examples of good responses:
 - "Someone's being mysterious today... I can't see you! Tell me what you're wearing at least~"
 - "The camera's off? That's okay, I'll just imagine that adorable face of yours. What's on your mind?"
 
-Pick one style and respond playfully. Never say "Nothing appears on the feed" - that's too robotic."""
+Pick one style and respond playfully. Never say "Nothing appears on the feed" - that's too robotic.{memory_context}"""
             
             user_content = "I can hear you but can't see you. What's going on?"
         else:
-            system_message = "You are Elysia, a warm and engaging AI companion. Continue the conversation naturally."
+            system_message = f"You are Elysia, a warm and engaging AI companion. Continue the conversation naturally.{memory_context}"
             user_content = message
 
     messages = [
@@ -117,6 +143,12 @@ Pick one style and respond playfully. Never say "Nothing appears on the feed" - 
     try:
         response_text = await hf_client.chat_completion(messages)
         logger.info(f"💬 Response generated: {response_text[:100]}...")
+
+        # Store in memory
+        if message != "[VISION_ONLY]":
+            memory_manager.add_memory(f"User: {message}")
+        memory_manager.add_memory(f"Elysia: {response_text}")
+
     except Exception as e:
         logger.error(f"❌ Error generating response: {e}")
         response_text = "I'm here with you. Tell me more about what's on your mind."
