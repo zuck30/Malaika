@@ -1,10 +1,12 @@
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import chat, vision, emotion
 from app.api.websocket import chat_ws
+from app.core.ai_models.hf_client import hf_client
 import os
 import logging
 
@@ -12,15 +14,22 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Elysia-AI Companion API")
-
-@app.on_event("startup")
-async def startup_event():
-    # Check all required keys
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     if not os.getenv("HUGGINGFACE_API_KEY"):
         logger.warning("HUGGINGFACE_API_KEY is not set! AI features will not work.")
+    yield
+    # Shutdown
+    logger.info("Shutting down Hugging Face client")
+    await hf_client.close()
 
-# Configure CORS => Muhimu kwa ajili ya mawasiliano na React frontend
+app = FastAPI(
+    title="Elysia-AI Companion API",
+    lifespan=lifespan
+)
+
+# Configure CORS for React frontend
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
 app.add_middleware(
@@ -31,7 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers kwa ajili ya REST endpoints
+# Include routers for REST endpoints
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(vision.router, prefix="/api/vision", tags=["vision"])
 app.include_router(emotion.router, prefix="/api/emotion", tags=["emotion"])
@@ -43,12 +52,9 @@ async def root():
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
     """
-    Hapa ndipo Elysia anapopokea texts na pics.
-    Tunatumia 'chat_ws.handle_websocket' ambayo i checked ipo.
+    WebSocket endpoint for real-time chat.
     """
     try:
-        # We call function directly from module ya chat_ws
         await chat_ws.handle_websocket(websocket)
     except Exception as e:
-        logger.error(f"WebSocket Runtime Error: {e}")
-        # This prevents server isizime (crash) kama kuna tatizo la connection
+        logger.error(f"WebSocket runtime error: {e}")

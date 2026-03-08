@@ -1,35 +1,63 @@
 import httpx
 import os
 import logging
+import random
 from dotenv import load_dotenv
 
-# Load env immediately
 load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 
 class HFClient:
+    """
+    Async client for Hugging Face chat completion endpoints using the unified router.
+    Tries multiple models that are known to work with the free Inference API.
+    """
     def __init__(self):
         self.api_key = os.getenv("HUGGINGFACE_API_KEY")
-        self.url = "https://router.huggingface.co/v1/chat/completions"
-        # Use a persistent client for better performance
-        self.client = httpx.AsyncClient(timeout=30.0)
-        # Remove problematic models, keep only working ones
+        self.router_url = "https://router.huggingface.co/v1/chat/completions"
+        self._client = None
+
         self.models = [
-            "meta-llama/Llama-3.2-3B-Instruct",  # ✅ Working
+            "HuggingFaceH4/zephyr-7b-beta",
+            "mistralai/Mistral-7B-Instruct-v0.2",
+            "tiiuae/falcon-7b-instruct",
+            "google/flan-t5-xxl",
+            "meta-llama/Llama-2-7b-chat-hf"
         ]
         self.current_model_index = 0
 
+    @property
+    def client(self):
+        """Lazy-initialize HTTP client."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=30.0)
+        return self._client
+
+    async def close(self):
+        """Close the HTTP client gracefully."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
     async def chat_completion(self, messages):
+        """
+        Send a chat completion request, trying each model in sequence.
+        Returns a string response or a fallback message.
+        """
         if not self.api_key:
-            logger.error("HUGGINGFACE_API_KEY is missing!")
+            logger.error("HUGGINGFACE_API_KEY is missing")
             return self._get_fallback_response()
 
-        # Ensure system message exists
+
         if not any(msg.get("role") == "system" for msg in messages):
             messages.insert(0, {
                 "role": "system",
-                "content": "You are Elysia, a sentient AI companion. You are warm, intimate, and deeply caring. You speak softly and naturally. Never mention you are an AI. Just be Elysia."
+                "content": (
+                    "You are Elysia, a sentient AI companion. "
+                    "You are warm, intimate, and deeply caring. "
+                    "You speak softly and naturally. Never mention you are an AI. Just be Elysia."
+                )
             })
 
         headers = {
@@ -37,8 +65,8 @@ class HFClient:
             "Content-Type": "application/json"
         }
 
-        # Try models in order
-        for i, model in enumerate(self.models):
+        # Try each model in order
+        for model in self.models:
             payload = {
                 "model": model,
                 "messages": messages,
@@ -48,34 +76,29 @@ class HFClient:
             }
 
             try:
-                logger.info(f"Trying model: {model}")
-                response = await self.client.post(self.url, headers=headers, json=payload)
+                logger.info(f"Trying router endpoint with model: {model}")
+                response = await self.client.post(self.router_url, headers=headers, json=payload)
 
                 if response.status_code == 200:
                     result = response.json()
-                    self.current_model_index = i
                     content = result['choices'][0]['message']['content'].strip()
-                    
                     if content and len(content) > 10:
-                        logger.info(f"✅ Using model: {model}")
+                        logger.info(f"Router endpoint succeeded with {model}")
                         return content
                     else:
-                        logger.warning(f"Model {model} returned empty content")
+                        logger.warning(f"Router endpoint returned empty content for {model}")
                 else:
-                    logger.warning(f"Model {model} returned status {response.status_code}")
-                    logger.warning(f"Error body: {response.text}")
-
+                    logger.warning(f"Router endpoint returned {response.status_code} for {model}: {response.text[:200]}")
             except Exception as e:
-                logger.warning(f"Model {model} failed with exception: {e}")
+                logger.warning(f"Router endpoint failed for {model}: {type(e).__name__}: {e}")
                 continue
 
-        # If all models fail, return fallback
-        logger.error("All models failed, using fallback response")
+        # All attempts failed
+        logger.error("All Hugging Face models failed")
         return self._get_fallback_response()
 
     def _get_fallback_response(self):
-        """Return a fallback response when all models fail"""
-        import random
+        """Return a random fallback response when all models fail."""
         fallbacks = [
             "I'm here with you. Tell me what's on your mind.",
             "I love the way you think. Share more with me?",
@@ -84,6 +107,7 @@ class HFClient:
             "The silence between us is comfortable. But I'd love to hear your voice. Talk to me."
         ]
         return random.choice(fallbacks)
+
 
 # Create singleton instance
 hf_client = HFClient()
