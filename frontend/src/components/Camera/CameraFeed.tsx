@@ -3,7 +3,7 @@ import Webcam from 'react-webcam';
 
 interface CameraFeedProps {
   isActive: boolean;
-  onFrame: (image: string) => void;
+  onFrame: (image: string) => void; // Expects base64 string
   isHidden?: boolean;
   webcamRef?: React.RefObject<Webcam>;
 }
@@ -13,18 +13,26 @@ const CameraFeed: React.FC<CameraFeedProps> = ({ isActive, onFrame, isHidden = t
   const webcamRef = externalWebcamRef || internalWebcamRef;
 
   const capture = useCallback(() => {
-    if (isActive && webcamRef.current) {
+    // Check if webcam is active and video is actually playing/ready
+    if (isActive && webcamRef.current && webcamRef.current.video?.readyState === 4) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
-        onFrame(imageSrc);
+        // Strip the "data:image/jpeg;base64," prefix so backend gets pure base64
+        const pureBase64 = imageSrc.split(',')[1];
+        onFrame(pureBase64);
       }
     }
-  }, [isActive, onFrame]);
+  }, [isActive, onFrame, webcamRef]);
 
   useEffect(() => {
-    const interval = setInterval(capture, 5000); // Capture every 5 seconds for analysis
-    return () => clearInterval(interval);
-  }, [capture]);
+    let interval: NodeJS.Timeout;
+    if (isActive) {
+      interval = setInterval(capture, 5000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [capture, isActive]);
 
   return (
     <div className={isHidden ? "hidden" : "relative group"}>

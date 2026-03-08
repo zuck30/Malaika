@@ -107,7 +107,7 @@ const App: React.FC = () => {
           formData.append('message', text);
           formData.append('file', blob, 'vision.jpg');
 
-          const response = await axios.post(`${API_BASE}/api/chat/vision-chat`, formData);
+          const response = await axios.post(`${API_BASE}/api/vision/vision-chat`, formData);
           const { response: elysia_response, emotion: new_emotion } = response.data;
 
           dispatch(setTyping(false));
