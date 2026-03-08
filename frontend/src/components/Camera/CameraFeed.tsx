@@ -35,7 +35,10 @@ const CameraFeed: React.FC<CameraFeedProps> = ({ isActive, onFrame, isHidden = t
   }, [capture, isActive]);
 
   return (
-    <div className={isHidden ? "hidden" : "relative group"}>
+    <div
+      className={isHidden ? "opacity-0 pointer-events-none absolute" : "relative group"}
+      style={{ width: isHidden ? '1px' : 'auto', height: isHidden ? '1px' : 'auto' }}
+    >
       {isActive && (
         <Webcam
           audio={false}

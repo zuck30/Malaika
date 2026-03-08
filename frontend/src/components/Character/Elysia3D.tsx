@@ -18,9 +18,10 @@ function Loader() {
   );
 }
 
-const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }) => {
+const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isListening }) => {
   const modelRef = useRef<THREE.Group>(null!);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const actionsRef = useRef<{ [key: string]: THREE.AnimationAction }>({});
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   const gltf = useLoader(GLTFLoader, '/models/elysia_v3.glb');
@@ -28,13 +29,33 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }
   useEffect(() => {
     if (!gltf?.scene) return;
 
-    console.log('Animations found:', gltf.animations?.length || 0);
+    console.log('Animations found:', gltf.animations?.map(a => a.name));
+
+    // Log morph targets
+    gltf.scene.traverse((obj: any) => {
+      if (obj.morphTargetDictionary) {
+        console.log('Morph targets for', obj.name, obj.morphTargetDictionary);
+      }
+    });
 
     if (gltf.animations && gltf.animations.length > 0) {
       const mixer = new THREE.AnimationMixer(gltf.scene);
       mixerRef.current = mixer;
-      const action = mixer.clipAction(gltf.animations[0]);
-      action.play();
+
+      gltf.animations.forEach(clip => {
+        actionsRef.current[clip.name] = mixer.clipAction(clip);
+      });
+
+      // Default idle
+      const idleClip = gltf.animations.find(a =>
+        a.name.toLowerCase().includes('idle') ||
+        a.name.toLowerCase().includes('base')
+      ) || gltf.animations[0];
+
+      if (idleClip) {
+        actionsRef.current[idleClip.name].play();
+      }
+
       mixer.update(0.01);
     } else {
       console.log('No animations, arms down');
@@ -78,11 +99,126 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
+  useEffect(() => {
+    if (!gltf?.scene) return;
+
+    const emotionMorphs: { [key: string]: { [key: string]: number } } = {
+      joy: { 'Fcl_ALL_Joy': 1, 'Fcl_MTH_Joy': 1, 'Fcl_EYE_Joy': 1 },
+      sadness: { 'Fcl_ALL_Sorrow': 1, 'Fcl_MTH_Sorrow': 1, 'Fcl_EYE_Sorrow': 1 },
+      anger: { 'Fcl_ALL_Angry': 1, 'Fcl_MTH_Angry': 1, 'Fcl_EYE_Angry': 1 },
+      surprise: { 'Fcl_ALL_Surprised': 1, 'Fcl_MTH_Surprised': 1, 'Fcl_EYE_Surprised': 1 },
+      neutral: { 'Fcl_ALL_Neutral': 1 },
+      kiss: { 'Fcl_MTH_U': 1, 'Fcl_EYE_Joy': 0.5 },
+      excited: { 'Fcl_ALL_Fun': 1, 'Fcl_MTH_Fun': 1, 'Fcl_EYE_Fun': 1 },
+      love: { 'Fcl_ALL_Joy': 1, 'Fcl_EYE_Joy': 1, 'Fcl_MTH_Small': 0.5 }
+    };
+
+    const targetMorphs = emotionMorphs[emotion] || emotionMorphs['neutral'];
+
+    gltf.scene.traverse((obj: any) => {
+      if (obj.morphTargetDictionary && obj.morphTargetInfluences) {
+        const dict = obj.morphTargetDictionary;
+
+        // Reset all emotion-related morphs first (keep speech ones)
+        Object.keys(dict).forEach(key => {
+          if (key.startsWith('Fcl_ALL_') || key.startsWith('Fcl_BRW_') || key.startsWith('Fcl_EYE_') || (key.startsWith('Fcl_MTH_') && !['Fcl_MTH_A', 'Fcl_MTH_I', 'Fcl_MTH_U', 'Fcl_MTH_E', 'Fcl_MTH_O'].includes(key))) {
+             const idx = dict[key];
+             obj.morphTargetInfluences[idx] = THREE.MathUtils.lerp(obj.morphTargetInfluences[idx], 0, 1.0);
+          }
+        });
+
+        // Apply new ones
+        Object.entries(targetMorphs).forEach(([name, val]) => {
+          if (dict[name] !== undefined) {
+            obj.morphTargetInfluences[dict[name]] = val;
+          }
+        });
+      }
+    });
+
+    // Also handle animations if available
+    if (!mixerRef.current) return;
+    const emotionMap: { [key: string]: string } = {
+      joy: 'happy',
+      sadness: 'sad',
+      anger: 'angry',
+      surprise: 'surprised',
+      kiss: 'kiss',
+      excited: 'excited',
+      love: 'love',
+    };
+    const animName = emotionMap[emotion] || 'idle';
+    const targetAction = Object.keys(actionsRef.current).find(name =>
+      name.toLowerCase().includes(animName)
+    );
+    if (targetAction) {
+      const action = actionsRef.current[targetAction];
+      action.reset().fadeIn(0.5).play();
+      Object.entries(actionsRef.current).forEach(([name, act]) => {
+        if (name !== targetAction) act.fadeOut(0.5);
+      });
+    }
+  }, [emotion, gltf]);
+
   useFrame((state, delta) => {
     const group = modelRef.current;
     if (!group) return;
 
     const time = state.clock.elapsedTime;
+
+    // Lip sync / Mouth movement using model-specific targets (Fcl_MTH_A, Fcl_MTH_O)
+    group.traverse((obj: any) => {
+      if (obj.morphTargetDictionary && obj.morphTargetInfluences) {
+        const dict = obj.morphTargetDictionary;
+        const mthA = dict['Fcl_MTH_A'];
+        const mthO = dict['Fcl_MTH_O'];
+        const mthI = dict['Fcl_MTH_I'];
+        const mthE = dict['Fcl_MTH_E'];
+        const mthU = dict['Fcl_MTH_U'];
+
+        if (mthA !== undefined) {
+          if (isSpeaking) {
+            // More dynamic viseme cycling for natural talking feel
+            // Speed adjusted to match faster AvaNeural voice (roughly 12-18Hz)
+            const speed = 16;
+            const waveA = Math.sin(time * speed);
+            const waveO = Math.cos(time * speed * 0.8);
+            const waveI = Math.sin(time * speed * 1.2);
+
+            const intensity = 0.6 + Math.random() * 0.4;
+
+            obj.morphTargetInfluences[mthA] = THREE.MathUtils.lerp(
+              obj.morphTargetInfluences[mthA],
+              Math.max(0, waveA) * intensity,
+              0.4
+            );
+
+            if (mthO !== undefined) {
+              obj.morphTargetInfluences[mthO] = THREE.MathUtils.lerp(
+                obj.morphTargetInfluences[mthO],
+                Math.max(0, waveO) * intensity * 0.4,
+                0.3
+              );
+            }
+
+            if (mthI !== undefined) {
+                obj.morphTargetInfluences[mthI] = THREE.MathUtils.lerp(
+                  obj.morphTargetInfluences[mthI],
+                  Math.max(0, waveI) * intensity * 0.2,
+                  0.3
+                );
+            }
+          } else {
+            // Close mouth
+            [mthA, mthO, mthI, mthE, mthU].forEach(idx => {
+              if (idx !== undefined) {
+                obj.morphTargetInfluences[idx] = THREE.MathUtils.lerp(obj.morphTargetInfluences[idx], 0, 0.2);
+              }
+            });
+          }
+        }
+      }
+    });
 
     group.position.y = -1.5 + Math.sin(time * 1.5) * 0.01;
 
@@ -94,13 +230,19 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ isSpeaking, isListening }
     group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, targetRotX, 0.05);
 
     if (isSpeaking) {
-      group.position.y += Math.sin(time * 12) * 0.015;
+      // Body "pulse" and natural head tilt when speaking
+      group.position.y += Math.sin(time * 8) * 0.005;
+      group.rotation.x += Math.sin(time * 4) * 0.015;
+      group.rotation.z += Math.cos(time * 3) * 0.01; // Subtle side tilt
+    } else {
+        // Natural idle breathing/sway
+        group.position.y += Math.sin(time * 1.5) * 0.002;
+        group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, Math.sin(time * 0.8) * 0.005, 0.05);
     }
 
     if (isListening) {
       group.rotation.z = Math.sin(time * 2.5) * 0.03;
-    } else {
-      group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, 0, 0.1);
+      group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, 0.1, 0.1); // Lean in slightly
     }
 
     mixerRef.current?.update(delta);

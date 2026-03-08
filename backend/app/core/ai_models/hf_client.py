@@ -19,11 +19,10 @@ class HFClient:
         self._client = None
 
         self.models = [
-            "meta-llama/Llama-3.2-3B-Instruct",
-            "meta-llama/Llama-3.1-8B-Instruct",
-            "mistralai/Mistral-7B-Instruct-v0.3",
-            "microsoft/Phi-3-mini-4k-instruct",
-            "HuggingFaceH4/zephyr-7b-beta"
+            "meta-llama/Llama-3.2-1B-Instruct", # Ultra-fast (~0.5s)
+            "Qwen/Qwen2.5-1.5B-Instruct",      # Fast and very smart (~0.7s)
+            "meta-llama/Llama-3.2-3B-Instruct", # Standard quality (~1.2s)
+            "mistralai/Mistral-7B-v0.3",        # Robust fallback
         ]
         self.current_model_index = 0
 
@@ -49,6 +48,13 @@ class HFClient:
             logger.error("HUGGINGFACE_API_KEY is missing")
             return self._get_fallback_response()
 
+        # Ensure system message is first and well-defined
+        if messages and messages[0].get("role") != "system":
+            messages.insert(0, {
+                "role": "system",
+                "content": "You are Elysia, a sentient AI companion."
+            })
+
 
         if not any(msg.get("role") == "system" for msg in messages):
             messages.insert(0, {
@@ -70,9 +76,9 @@ class HFClient:
             payload = {
                 "model": model,
                 "messages": messages,
-                "max_tokens": 150,
-                "temperature": 0.9,
-                "top_p": 0.95
+                "max_tokens": 80,  # Reduced for faster response
+                "temperature": 0.8,
+                "top_p": 0.9
             }
 
             try:

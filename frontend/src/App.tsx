@@ -102,12 +102,21 @@ const App: React.FC = () => {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
         try {
-          const blob = await fetch(imageSrc).then((r) => r.blob());
+          // Extract base64 data properly
+          const base64Data = imageSrc.split(',')[1];
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
           const formData = new FormData();
           formData.append('message', text);
           formData.append('file', blob, 'vision.jpg');
 
-          const response = await axios.post(`${API_BASE}/api/vision/vision-chat`, formData);
+          const response = await axios.post(`${API_BASE}/api/chat/vision-chat`, formData);
           const { response: elysia_response, emotion: new_emotion } = response.data;
 
           dispatch(setTyping(false));
@@ -125,14 +134,20 @@ const App: React.FC = () => {
   };
 
   const handleFrame = async (imageSrc: string) => {
-    if (isProcessingVisionRef.current) return;
-
-    const fetchRes = await fetch(imageSrc);
-    const blob = await fetchRes.blob();
+    if (isProcessingVisionRef.current || isSpeaking) return;
 
     isProcessingVisionRef.current = true;
 
     try {
+      const base64Data = imageSrc; // CameraFeed already stripped the prefix
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
       const formData = new FormData();
       formData.append('message', '[VISION_ONLY]');
       formData.append('file', blob, 'frame.jpg');
@@ -140,17 +155,26 @@ const App: React.FC = () => {
       const response = await axios.post(`${API_BASE}/api/chat/vision-chat`, formData);
       const { response: elysia_response, emotion: new_emotion, visual_description } = response.data;
 
-      if (visual_description !== lastAnalysisRef.current) {
+      // Only respond if the description changed or enough time has passed (to avoid chatter)
+      // Here we trust the backend's specific descriptions to drive spontaneity
+      if (visual_description && visual_description !== lastAnalysisRef.current) {
         lastAnalysisRef.current = visual_description;
-        dispatch(setVisionAnalysis(visual_description));
-        dispatch(addMessage({ role: 'elysia', content: elysia_response }));
-        if (new_emotion) dispatch(setEmotion(new_emotion));
-        handleSpeak(elysia_response);
+
+        // Only actually "say" something if Elysia is not already talking
+        if (!isSpeaking) {
+          dispatch(setVisionAnalysis(visual_description));
+          dispatch(addMessage({ role: 'elysia', content: elysia_response }));
+          if (new_emotion) dispatch(setEmotion(new_emotion));
+          handleSpeak(elysia_response);
+        }
       }
     } catch (err) {
       console.error('Vision frame processing failed', err);
     } finally {
-      isProcessingVisionRef.current = false;
+      // Add a cool-down for proactive vision
+      setTimeout(() => {
+        isProcessingVisionRef.current = false;
+      }, 10000); // 10 second cooldown between proactive comments
     }
   };
 
