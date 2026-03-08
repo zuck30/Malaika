@@ -28,5 +28,6 @@ __pycache__/
 *.bin
 *.pt
 
-
+#memory files
+backend/memory/*
 backend/chroma_db/chroma.sqlite3
