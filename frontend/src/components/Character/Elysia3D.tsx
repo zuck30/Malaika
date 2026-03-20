@@ -1,6 +1,6 @@
-import React, { useRef, useEffect, useState, Suspense } from 'react';
+import React, { useRef, Suspense, useState, useEffect } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
-import { Environment, Html, OrbitControls } from '@react-three/drei';
+import { Environment, Html } from '@react-three/drei';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as THREE from 'three';
 
@@ -13,79 +13,39 @@ interface ElysiaCharacterProps {
 function Loader() {
   return (
     <Html center>
-      <div className="text-white text-xl font-bold bg-black/50 p-4 rounded">Loading Elysia...</div>
+      <div className="flex flex-col items-center">
+        <div className="w-16 h-16 border-4 border-sky-400 border-t-transparent rounded-full animate-spin mb-4 shadow-lg"></div>
+        <div className="text-sky-600 text-lg font-bold bg-white/90 px-4 py-2 rounded-full shadow-md backdrop-blur-md animate-pulse">
+          Elysia is arriving...
+        </div>
+      </div>
     </Html>
   );
 }
 
 const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isListening }) => {
   const modelRef = useRef<THREE.Group>(null!);
-  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
-  const actionsRef = useRef<{ [key: string]: THREE.AnimationAction }>({});
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
   const gltf = useLoader(GLTFLoader, '/models/elysia_v3.glb');
 
+  // Initial setup for the model
   useEffect(() => {
     if (!gltf?.scene) return;
 
-    console.log('Animations found:', gltf.animations?.map(a => a.name));
-
-    // Log morph targets
-    gltf.scene.traverse((obj: any) => {
-      if (obj.morphTargetDictionary) {
-        console.log('Morph targets for', obj.name, obj.morphTargetDictionary);
+    // Reset materials to be brighter and more vibrant
+    gltf.scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (mesh.material) {
+          const mat = mesh.material as THREE.MeshStandardMaterial;
+          mat.roughness = 0.4;
+          mat.metalness = 0.3;
+          mat.envMapIntensity = 2.0;
+          // Ensure materials are double sided if needed
+          mat.side = THREE.DoubleSide;
+        }
       }
     });
-
-    if (gltf.animations && gltf.animations.length > 0) {
-      const mixer = new THREE.AnimationMixer(gltf.scene);
-      mixerRef.current = mixer;
-
-      gltf.animations.forEach(clip => {
-        actionsRef.current[clip.name] = mixer.clipAction(clip);
-      });
-
-      // Default idle
-      const idleClip = gltf.animations.find(a =>
-        a.name.toLowerCase().includes('idle') ||
-        a.name.toLowerCase().includes('base')
-      ) || gltf.animations[0];
-
-      if (idleClip) {
-        actionsRef.current[idleClip.name].play();
-      }
-
-      mixer.update(0.01);
-    } else {
-      console.log('No animations, arms down');
-      gltf.scene.traverse((obj: any) => {
-        if (!obj.isBone) return;
-        const name = obj.name.toLowerCase();
-
-        if (name.includes('upperarm') || name.includes('upper_arm')) {
-          obj.rotation.x = Math.PI / 2;
-          obj.rotation.z = 0;
-          obj.rotation.y = 0;
-        }
-
-        if (name.includes('lowerarm') || name.includes('lower_arm')) {
-          obj.rotation.x = 0;
-          obj.rotation.z = 0;
-          obj.rotation.y = 0;
-        }
-
-        if (name.includes('hand') && !name.includes('wrist')) {
-          obj.rotation.x = 0;
-          obj.rotation.y = 0;
-          obj.rotation.z = 0;
-        }
-      });
-    }
-
-    return () => {
-      mixerRef.current?.stopAllAction();
-    };
   }, [gltf]);
 
   useEffect(() => {
@@ -99,188 +59,167 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isLi
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  useEffect(() => {
-    if (!gltf?.scene) return;
+  // Animation constants
+  const baseScale = 0.022; // Larger scale to fit screen better
+  const baseY = -1.8; // Positioned lower to center the model better
 
-    const emotionMorphs: { [key: string]: { [key: string]: number } } = {
-      joy: { 'Fcl_ALL_Joy': 1, 'Fcl_MTH_Joy': 1, 'Fcl_EYE_Joy': 1 },
-      sadness: { 'Fcl_ALL_Sorrow': 1, 'Fcl_MTH_Sorrow': 1, 'Fcl_EYE_Sorrow': 1 },
-      anger: { 'Fcl_ALL_Angry': 1, 'Fcl_MTH_Angry': 1, 'Fcl_EYE_Angry': 1 },
-      surprise: { 'Fcl_ALL_Surprised': 1, 'Fcl_MTH_Surprised': 1, 'Fcl_EYE_Surprised': 1 },
-      neutral: { 'Fcl_ALL_Neutral': 1 },
-      kiss: { 'Fcl_MTH_U': 1, 'Fcl_EYE_Joy': 0.5 },
-      excited: { 'Fcl_ALL_Fun': 1, 'Fcl_MTH_Fun': 1, 'Fcl_EYE_Fun': 1 },
-      love: { 'Fcl_ALL_Joy': 1, 'Fcl_EYE_Joy': 1, 'Fcl_MTH_Small': 0.5 }
-    };
-
-    const targetMorphs = emotionMorphs[emotion] || emotionMorphs['neutral'];
-
-    gltf.scene.traverse((obj: any) => {
-      if (obj.morphTargetDictionary && obj.morphTargetInfluences) {
-        const dict = obj.morphTargetDictionary;
-
-        // Reset all emotion-related morphs first (keep speech ones)
-        Object.keys(dict).forEach(key => {
-          if (key.startsWith('Fcl_ALL_') || key.startsWith('Fcl_BRW_') || key.startsWith('Fcl_EYE_') || (key.startsWith('Fcl_MTH_') && !['Fcl_MTH_A', 'Fcl_MTH_I', 'Fcl_MTH_U', 'Fcl_MTH_E', 'Fcl_MTH_O'].includes(key))) {
-             const idx = dict[key];
-             obj.morphTargetInfluences[idx] = THREE.MathUtils.lerp(obj.morphTargetInfluences[idx], 0, 1.0);
-          }
-        });
-
-        // Apply new ones
-        Object.entries(targetMorphs).forEach(([name, val]) => {
-          if (dict[name] !== undefined) {
-            obj.morphTargetInfluences[dict[name]] = val;
-          }
-        });
-      }
-    });
-
-    // Also handle animations if available
-    if (!mixerRef.current) return;
-    const emotionMap: { [key: string]: string } = {
-      joy: 'happy',
-      sadness: 'sad',
-      anger: 'angry',
-      surprise: 'surprised',
-      kiss: 'kiss',
-      excited: 'excited',
-      love: 'love',
-    };
-    const animName = emotionMap[emotion] || 'idle';
-    const targetAction = Object.keys(actionsRef.current).find(name =>
-      name.toLowerCase().includes(animName)
-    );
-    if (targetAction) {
-      const action = actionsRef.current[targetAction];
-      action.reset().fadeIn(0.5).play();
-      Object.entries(actionsRef.current).forEach(([name, act]) => {
-        if (name !== targetAction) act.fadeOut(0.5);
-      });
-    }
-  }, [emotion, gltf]);
-
-  useFrame((state, delta) => {
+  useFrame((state) => {
     const group = modelRef.current;
     if (!group) return;
 
     const time = state.clock.elapsedTime;
 
-    // Lip sync / Mouth movement using model-specific targets (Fcl_MTH_A, Fcl_MTH_O)
-    group.traverse((obj: any) => {
-      if (obj.morphTargetDictionary && obj.morphTargetInfluences) {
-        const dict = obj.morphTargetDictionary;
-        const mthA = dict['Fcl_MTH_A'];
-        const mthO = dict['Fcl_MTH_O'];
-        const mthI = dict['Fcl_MTH_I'];
-        const mthE = dict['Fcl_MTH_E'];
-        const mthU = dict['Fcl_MTH_U'];
+    // BASE POSE
+    // The model from sketchfab is rotated -Math.PI/2 on X (lying flat).
+    // We want it standing up.
+    let targetRotX = -Math.PI / 2;
+    let targetRotY = 0;
+    let targetRotZ = 0;
+    let targetPosY = baseY;
+    let targetScale = baseScale;
 
-        if (mthA !== undefined) {
-          if (isSpeaking) {
-            // More dynamic viseme cycling for natural talking feel
-            // Speed adjusted to match faster AvaNeural voice (roughly 12-18Hz)
-            const speed = 16;
-            const waveA = Math.sin(time * speed);
-            const waveO = Math.cos(time * speed * 0.8);
-            const waveI = Math.sin(time * speed * 1.2);
+    // Procedural Breathing (Idle)
+    const breathingAmount = 0.03;
+    const breathingSpeed = 1.2;
+    const breathing = Math.sin(time * breathingSpeed) * breathingAmount;
+    targetPosY += breathing;
+    targetScale *= (1 + breathing * 0.2);
 
-            const intensity = 0.6 + Math.random() * 0.4;
+    // EMOTION MODIFIERS - HIGHLY EXPRESSIVE
+    // Mapped to match backend candidate labels: ["happy", "sad", "angry", "surprised", "neutral", "loving", "curious", "bored", "anxious", "confused"]
+    switch (emotion) {
+      case 'joy':
+      case 'excited':
+      case 'happy':
+        // High energy bouncing
+        const joyBounce = Math.abs(Math.sin(time * 6)) * 0.3;
+        targetPosY += joyBounce;
+        // Happy wiggle
+        targetRotZ = Math.sin(time * 4) * 0.15;
+        targetScale *= 1.1;
+        break;
+      case 'sadness':
+      case 'sad':
+        // Slow, heavy breathing and looking down
+        targetRotX += 0.35;
+        targetPosY -= 0.1;
+        const sadBreathing = Math.sin(time * 0.6) * 0.01;
+        targetPosY += sadBreathing;
+        break;
+      case 'anger':
+      case 'angry':
+        // Intense vibrating/shaking
+        const angerShake = Math.sin(time * 35) * 0.02;
+        targetRotY += angerShake;
+        targetRotX -= 0.15; // Lean forward aggressively
+        targetPosY += 0.05;
+        break;
+      case 'surprise':
+      case 'surprised':
+        // Sharp "jump" and lean back
+        const surprisePop = Math.exp(-((time * 4) % 4)) * 0.4;
+        targetPosY += surprisePop;
+        targetRotX -= 0.25;
+        targetScale *= 1.15;
+        break;
+      case 'curious':
+      case 'confused':
+        // Large, inquisitive head/body tilt
+        targetRotZ = Math.sin(time * 1.5) * 0.25;
+        targetRotY = Math.cos(time * 1.5) * 0.1;
+        break;
+      case 'loving':
+        // Soft pulsing and gentle swaying
+        targetScale *= 1.05 + Math.sin(time * 2) * 0.02;
+        targetRotZ = Math.sin(time * 1) * 0.1;
+        break;
+      case 'bored':
+        // Leaning and slow swaying
+        targetRotZ = 0.2;
+        targetRotX += 0.1;
+        const boredSway = Math.sin(time * 0.5) * 0.05;
+        targetRotY += boredSway;
+        break;
+      case 'anxious':
+        // Fast subtle jittering
+        const anxiousJitter = Math.sin(time * 50) * 0.005;
+        targetPosY += anxiousJitter;
+        targetRotY += Math.sin(time * 10) * 0.05;
+        break;
+      default:
+        // Neutral or unknown emotion
+        break;
+    }
 
-            obj.morphTargetInfluences[mthA] = THREE.MathUtils.lerp(
-              obj.morphTargetInfluences[mthA],
-              Math.max(0, waveA) * intensity,
-              0.4
-            );
-
-            if (mthO !== undefined) {
-              obj.morphTargetInfluences[mthO] = THREE.MathUtils.lerp(
-                obj.morphTargetInfluences[mthO],
-                Math.max(0, waveO) * intensity * 0.4,
-                0.3
-              );
-            }
-
-            if (mthI !== undefined) {
-                obj.morphTargetInfluences[mthI] = THREE.MathUtils.lerp(
-                  obj.morphTargetInfluences[mthI],
-                  Math.max(0, waveI) * intensity * 0.2,
-                  0.3
-                );
-            }
-          } else {
-            // Close mouth
-            [mthA, mthO, mthI, mthE, mthU].forEach(idx => {
-              if (idx !== undefined) {
-                obj.morphTargetInfluences[idx] = THREE.MathUtils.lerp(obj.morphTargetInfluences[idx], 0, 0.2);
-              }
-            });
-          }
-        }
-      }
-    });
-
-    group.position.y = -1.5 + Math.sin(time * 1.5) * 0.01;
-
-    const baseRotationY = Math.PI;
-    const targetRotY = baseRotationY + mousePos.x * 0.3;
-    const targetRotX = mousePos.y * 0.15;
-
-    group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetRotY, 0.05);
-    group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, targetRotX, 0.05);
-
+    // SPEAKING MODIFIER
     if (isSpeaking) {
-      // Body "pulse" and natural head tilt when speaking
-      group.position.y += Math.sin(time * 8) * 0.005;
-      group.rotation.x += Math.sin(time * 4) * 0.015;
-      group.rotation.z += Math.cos(time * 3) * 0.01; // Subtle side tilt
-    } else {
-        // Natural idle breathing/sway
-        group.position.y += Math.sin(time * 1.5) * 0.002;
-        group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, Math.sin(time * 0.8) * 0.005, 0.05);
+      // Rapid mouth-sync simulation via scale and Y-jitter
+      const talkEnergy = Math.sin(time * 28) * 0.015;
+      const talkPulse = 1 + Math.abs(Math.sin(time * 12)) * 0.04;
+      targetPosY += talkEnergy;
+      targetScale *= talkPulse;
     }
 
+    // LISTENING MODIFIER
     if (isListening) {
-      group.rotation.z = Math.sin(time * 2.5) * 0.03;
-      group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, 0.1, 0.1); // Lean in slightly
+      // Attentive lean
+      targetRotX -= 0.1;
+      targetScale *= 1.02;
     }
 
-    mixerRef.current?.update(delta);
+    // MOUSE TRACKING (Look at user)
+    const lookAtX = mousePos.y * 0.2;
+    const lookAtY = mousePos.x * 0.35;
+
+    // APPLY TRANSFORMATIONS WITH SMOOTHING (Lerp)
+    const lerpFactor = 0.1;
+    group.position.y = THREE.MathUtils.lerp(group.position.y, targetPosY, lerpFactor);
+    group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, targetRotX + lookAtX, lerpFactor);
+    group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, targetRotZ + lookAtY, lerpFactor); // Z used for side-to-side due to model orientation
+    group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetRotY, lerpFactor);
+
+    const s = THREE.MathUtils.lerp(group.scale.x, targetScale, lerpFactor);
+    group.scale.set(s, s, s);
   });
 
   return (
-    <primitive ref={modelRef} object={gltf.scene} scale={1.3} position={[0, -1.5, 0]} rotation={[0, Math.PI, 0]} />
+    <primitive
+      ref={modelRef}
+      object={gltf.scene}
+      scale={baseScale}
+      position={[0, baseY, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+    />
   );
 };
 
 const ElysiaCharacter3D: React.FC<ElysiaCharacterProps> = (props) => {
   return (
-    <div className="relative w-full h-full min-h-[600px] bg-transparent">
+    <div className="relative w-full h-full flex items-center justify-center">
       <Canvas
-        camera={{ position: [0, 0, 4], fov: 45 }}
         gl={{
           alpha: true,
           antialias: true,
           outputColorSpace: THREE.SRGBColorSpace,
+          toneMapping: THREE.ACESFilmicToneMapping,
         }}
+        camera={{ position: [0, 0, 5], fov: 40 }}
       >
-        {/* Brighter lights for light background */}
+        {/* Cinematic Lighting */}
         <ambientLight intensity={1.2} />
-        <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1.5} />
-        <pointLight position={[-10, 5, -10]} intensity={0.8} />
+        <spotLight position={[10, 15, 10]} angle={0.25} penumbra={1} intensity={2.5} castShadow />
+        <directionalLight position={[-8, 8, 5]} intensity={1.5} color="#ffffff" />
+        <pointLight position={[-5, -5, 5]} intensity={1.2} color="#00B9FF" />
+        <pointLight position={[5, 5, 2]} intensity={0.8} color="#FFFC00" />
 
         <Suspense fallback={<Loader />}>
           <ElysiaModel {...props} />
           <Environment preset="apartment" />
-          <OrbitControls
-            enableZoom={true}
-            enablePan={false}
-            target={[0, 0, 0]}
-            minPolarAngle={Math.PI / 3}
-            maxPolarAngle={Math.PI / 1.5}
-          />
         </Suspense>
       </Canvas>
+
+      {/* Visual background element to ground the character */}
+      <div className="absolute inset-0 -z-10 bg-radial-gradient from-sky-100/20 to-transparent pointer-events-none" />
     </div>
   );
 };

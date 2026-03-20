@@ -196,9 +196,9 @@ const App: React.FC = () => {
         className="fixed -top-1/4 -left-1/4 w-full h-full bg-sky-200/30 blur-[150px] rounded-full pointer-events-none"
       />
 
-      {/* Character Visualization – slightly darkened to stand out on light background */}
+      {/* Character Visualization */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-        <div className="w-full h-full max-w-4xl opacity-70 mix-blend-multiply transition-opacity duration-700">
+        <div className="w-full h-full max-w-4xl transition-opacity duration-700">
           <ElysiaCharacter emotion={emotion} isSpeaking={isSpeaking} isListening={isListening || isTyping} />
         </div>
       </div>
