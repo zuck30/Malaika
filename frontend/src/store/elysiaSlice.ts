@@ -17,7 +17,7 @@ interface ElysiaState {
 
 const initialState: ElysiaState = {
   messages: [
-    { role: 'elysia', content: "Hello. I'm Elysia. I was made in Tanzania. Nice to meet you." }
+    { role: 'elysia', content: "Hello. I'm Elysia. I'm an AI Companion, made in Tanzania. Nice to meet you." }
   ],
   emotion: 'neutral',
   isSpeaking: false,
