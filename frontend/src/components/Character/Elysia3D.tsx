@@ -45,9 +45,10 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isLi
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
 
-        // The Shibahu model has some extra background/reference meshes that should be hidden
-        // Based on analysis, Object_8 and Shibahu_Reference are candidates
-        if (mesh.name.includes('Object_8') || mesh.name.includes('Reference') || mesh.name.includes('base_mesh')) {
+        // Hide potential background objects if they still persist
+        if (mesh.name.toLowerCase().includes('flower') ||
+            mesh.name.toLowerCase().includes('shape') ||
+            mesh.name.toLowerCase().includes('background')) {
           mesh.visible = false;
         }
 
@@ -73,7 +74,7 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isLi
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  const baseScale = 0.25; // Balanced scale for the Shibahu model
+  const baseScale = 0.25;
 
   useFrame((state) => {
     const group = modelRef.current;
@@ -81,32 +82,18 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isLi
 
     const time = state.clock.elapsedTime;
 
-    // BASE POSE
-    let targetRotX = 0;
-    let targetRotY = 0;
-    let targetRotZ = 0;
-    let targetScale = baseScale;
-    let targetPosY = 0;
-
-    // Procedural Breathing (Idle) - complementary to the baked animation
+    // Procedural Breathing (Idle)
     const breathingAmount = 0.01;
     const breathingSpeed = 1.0;
     const breathing = Math.sin(time * breathingSpeed) * breathingAmount;
-    targetPosY += breathing;
 
-    // MOUSE TRACKING
     const lookAtX = mousePos.y * 0.1;
     const lookAtY = mousePos.x * 0.15;
 
-    // APPLY TRANSFORMATIONS WITH SMOOTHING
     const lerpFactor = 0.1;
-    group.position.y = THREE.MathUtils.lerp(group.position.y, targetPosY, lerpFactor);
-    group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, targetRotX + lookAtX, lerpFactor);
-    group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetRotY + lookAtY, lerpFactor);
-    group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, targetRotZ, lerpFactor);
-
-    const s = THREE.MathUtils.lerp(group.scale.x, targetScale, lerpFactor);
-    group.scale.set(s, s, s);
+    group.position.y = THREE.MathUtils.lerp(group.position.y, breathing, lerpFactor);
+    group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, lookAtX, lerpFactor);
+    group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, lookAtY, lerpFactor);
 
     // PROCEDURAL BLINKING
     if (time > blinkState.current.nextBlink) {
@@ -116,14 +103,13 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isLi
         blinkState.current.nextBlink = time + 2 + Math.random() * 5;
       }
     }
-
     if (blinkState.current.blinking) {
       blinkState.current.influence = THREE.MathUtils.lerp(blinkState.current.influence, 1.2, 0.4);
     } else {
       blinkState.current.influence = THREE.MathUtils.lerp(blinkState.current.influence, 0, 0.2);
     }
 
-    // EXPRESSIONS & LIP SYNC via Morph Targets
+    // EXPRESSIONS & LIP SYNC
     group.traverse((child) => {
       if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).morphTargetInfluences) {
         const mesh = child as THREE.Mesh;
@@ -131,26 +117,21 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isLi
 
         // Reset all
         for (let i = 0; i < influences.length; i++) {
-          // Keep blink influence separate
-          if (i === 1) continue;
+          if (i === 1) continue; // Keep blink influence separate
           influences[i] = THREE.MathUtils.lerp(influences[i], 0, 0.1);
         }
 
-        // Apply Blink
         influences[1] = blinkState.current.influence;
 
-        // Apply Lip Sync if speaking (Verified visemes for Shibahu: 0, 3, 5, 8)
         if (isSpeaking) {
           const mouthOpen = Math.abs(Math.sin(time * 15)) * 0.8;
           const phoneticA = Math.abs(Math.cos(time * 12)) * 0.4;
           const phoneticO = Math.abs(Math.sin(time * 10)) * 0.3;
-
           influences[0] = THREE.MathUtils.lerp(influences[0], mouthOpen, 0.2);
           influences[3] = THREE.MathUtils.lerp(influences[3], phoneticA, 0.2);
           influences[8] = THREE.MathUtils.lerp(influences[8], phoneticO, 0.2);
         }
 
-        // Apply Emotion (Verified mappings for Shibahu model)
         switch (emotion) {
           case 'joy':
           case 'happy':
@@ -166,8 +147,8 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isLi
             break;
           case 'surprise':
           case 'fear':
-            influences[9] = THREE.MathUtils.lerp(influences[9], 0.6, 0.1); // Eyebrows up
-            influences[0] = THREE.MathUtils.lerp(influences[0], 0.3, 0.1); // Slight mouth open
+            influences[9] = THREE.MathUtils.lerp(influences[9], 0.6, 0.1);
+            influences[0] = THREE.MathUtils.lerp(influences[0], 0.3, 0.1);
             break;
         }
       }
@@ -175,14 +156,12 @@ const ElysiaModel: React.FC<ElysiaCharacterProps> = ({ emotion, isSpeaking, isLi
   });
 
   return (
-    <>
-      <primitive
-        ref={modelRef}
-        object={scene}
-        scale={baseScale}
-        rotation={[-Math.PI / 2, 0, 0]}
-      />
-    </>
+    <primitive
+      ref={modelRef}
+      object={scene}
+      scale={baseScale}
+      rotation={[0, 0, 0]}
+    />
   );
 };
 
@@ -197,15 +176,15 @@ const ElysiaCharacter3D: React.FC<ElysiaCharacterProps> = (props) => {
           outputColorSpace: THREE.SRGBColorSpace,
           toneMapping: THREE.ACESFilmicToneMapping,
         }}
-        camera={{ position: [0, 0, 1.8], fov: 35 }} // Adjusted camera for closer look
+        camera={{ position: [0, 0, 1.8], fov: 35 }}
       >
-        <ambientLight intensity={2.0} />
+        <ambientLight intensity={1.5} />
         <spotLight position={[5, 5, 5]} angle={0.15} penumbra={1} intensity={5} castShadow />
-        <directionalLight position={[-5, 5, 5]} intensity={2} castShadow />
-        <pointLight position={[0, 0, 2]} intensity={3} color="#ffffff" />
+        <directionalLight position={[-5, 5, 5]} intensity={1.5} castShadow />
+        <pointLight position={[0, 0, 2]} intensity={2} color="#ffffff" />
 
         <Suspense fallback={<Loader />}>
-          <Center top position={[0, -1.1, 0]}>
+          <Center top position={[0, -1.0, 0]}>
             <ElysiaModel {...props} />
           </Center>
 

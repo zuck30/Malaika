@@ -137,11 +137,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-transparent font-avenir items-center overflow-hidden relative">
+    <div className="flex flex-col h-full w-full bg-transparent font-avenir items-center overflow-hidden relative pointer-events-none">
       {/* Message Area */}
       <div
         ref={scrollRef}
-        className="flex-1 w-full overflow-y-auto px-4 pt-10 scroll-smooth min-h-0 scrollbar-hide"
+        className="flex-1 w-full overflow-y-auto px-4 pt-10 scroll-smooth min-h-0 scrollbar-hide pointer-events-auto"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         <div className="max-w-[700px] mx-auto flex flex-col space-y-4 pb-8">
@@ -180,7 +180,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </div>
 
       {/* Input Area */}
-      <div className="p-4 pb-8 w-full max-w-[700px] relative z-10">
+      <div className="p-4 pb-8 w-full max-w-[700px] relative z-10 pointer-events-auto">
         <AnimatePresence>
           {showEmojiPicker && (
             <motion.div
