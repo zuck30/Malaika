@@ -25,6 +25,16 @@ const App: React.FC = () => {
   const dispatch = useDispatch();
   const { messages, emotion, isSpeaking, isListening, isTyping, cameraActive, visionAnalysis } =
     useSelector((state: RootState) => state.elysia);
+
+  const [debugMorph, setDebugMorph] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const morph = params.get('morph');
+    if (morph !== null) {
+      setDebugMorph(parseInt(morph));
+    }
+  }, []);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const webcamRef = React.useRef<Webcam>(null);
 
@@ -197,9 +207,14 @@ const App: React.FC = () => {
       />
 
       {/* Character Visualization */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-auto overflow-hidden">
         <div className="w-full h-full max-w-4xl transition-opacity duration-700">
-          <ElysiaCharacter emotion={emotion} isSpeaking={isSpeaking} isListening={isListening || isTyping} />
+          <ElysiaCharacter
+            emotion={emotion}
+            isSpeaking={isSpeaking}
+            isListening={isListening || isTyping}
+            debugMorphIndex={debugMorph}
+          />
         </div>
       </div>
 
