@@ -1,4 +1,7 @@
-from fer import FER
+try:
+    from fer import FER
+except ImportError:
+    from fer.fer import FER
 import cv2
 import numpy as np
 import base64
