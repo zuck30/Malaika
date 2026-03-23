@@ -67,7 +67,7 @@ const Model = ({ emotion, isSpeaking, isListening }: Malaika3DProps) => {
 
     scene.traverse((obj: any) => {
       if (obj instanceof THREE.Mesh && obj.morphTargetInfluences) {
-        // Targets for Malaika_v3.glb (Shibahu model)
+        // Targets for Malaika_v3.glb
         // Usually Object_69, Object_70, Object_71 are the head/face meshes
         const isHeadMesh = obj.name === 'Object_69' || obj.name === 'Object_70' || obj.name === 'Object_71';
 
