@@ -15,125 +15,112 @@ interface Elysia3DProps {
   emotion?: string;
   isSpeaking?: boolean;
   isListening?: boolean;
-  debugMorphIndex?: number;
 }
 
-const Model = ({ emotion, isSpeaking, isListening, debugMorphIndex }: Elysia3DProps) => {
+const Model = ({ emotion, isSpeaking, isListening }: Elysia3DProps) => {
   const group = useRef<THREE.Group>(null);
-  const { scene, animations } = useGLTF('/models/elysia_v3.glb');
+  const { animations, scene } = useGLTF("/models/elysia_v3.glb") as any;
   const { actions } = useAnimations(animations, group);
 
-  // Clean up the scene: Remove helper meshes and adjust materials
+  // Optimize and enhance materials for a high-quality "designed" look
   useEffect(() => {
-    scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        // Hide helper meshes
+    scene.traverse((obj: any) => {
+      if (obj.isMesh) {
+        // Hide irrelevant helper/grid meshes
         if (obj.name.toLowerCase().includes('base_mesh') ||
             obj.name.toLowerCase().includes('line_gp') ||
             obj.name.toLowerCase().includes('grid')) {
           obj.visible = false;
         }
 
-        // Improve material quality
         if (obj.material) {
+          obj.material.roughness = 0.4;
+          obj.material.metalness = 0.2;
           obj.material.envMapIntensity = 1.2;
-          if (obj.material instanceof THREE.MeshStandardMaterial) {
-            obj.material.roughness = 0.4;
+          if (obj.material.map) {
+            obj.material.map.anisotropy = 16;
           }
         }
 
-        // Cast/Receive shadows
+        // Enable casting and receiving shadows for depth
         obj.castShadow = true;
         obj.receiveShadow = true;
       }
     });
   }, [scene]);
 
-  // Handle Animations
+  // Handle Animations: Sync idle animation with speaking state
   useEffect(() => {
-    // Take 001 seems to be the main idle/animation track
     const idleAction = actions['Take 001'];
     if (idleAction) {
       idleAction.reset().fadeIn(0.5).play();
+      // Increase movement speed slightly when speaking for a more dynamic feel
       idleAction.timeScale = isSpeaking ? 1.2 : 0.8;
     }
   }, [actions, isSpeaking]);
 
-  // Handle Morph Targets for Expressions
+  // Handle Morph Targets for Expressions, Speech, and Blinking
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
 
-    scene.traverse((obj) => {
+    scene.traverse((obj: any) => {
       if (obj instanceof THREE.Mesh && obj.morphTargetInfluences) {
-        // Debug mode: show only the selected morph target
-        if (debugMorphIndex !== undefined && debugMorphIndex >= 0) {
-          obj.morphTargetInfluences.fill(0);
-          if (debugMorphIndex < obj.morphTargetInfluences.length) {
-            obj.morphTargetInfluences[debugMorphIndex] = 1;
+        // Targets found on Object_69, Object_70, Object_71
+        const isHeadMesh = obj.name === 'Object_69' || obj.name === 'Object_70' || obj.name === 'Object_71';
+
+        if (isHeadMesh) {
+          // 1. Natural Blinking (Index 0)
+          const blinkBase = Math.sin(t * 0.8) > 0.985 ? 1 : 0;
+          obj.morphTargetInfluences[0] = THREE.MathUtils.lerp(obj.morphTargetInfluences[0], blinkBase, 0.4);
+
+          // 2. Dynamic Speech Animation (Index 1 & 2)
+          if (isSpeaking) {
+            const mouthA = (Math.sin(t * 15) + 1) * 0.45;
+            const mouthE = (Math.cos(t * 12) + 1) * 0.25;
+            obj.morphTargetInfluences[1] = THREE.MathUtils.lerp(obj.morphTargetInfluences[1], mouthA, 0.4);
+            obj.morphTargetInfluences[2] = THREE.MathUtils.lerp(obj.morphTargetInfluences[2], mouthE, 0.4);
+          } else {
+            obj.morphTargetInfluences[1] = THREE.MathUtils.lerp(obj.morphTargetInfluences[1], 0, 0.2);
+            obj.morphTargetInfluences[2] = THREE.MathUtils.lerp(obj.morphTargetInfluences[2], 0, 0.2);
           }
-          return;
-        }
 
-        // Meshes 26, 27, 28 were identified as having morph targets
-        // Index 0: Often Blink
+          // 3. Emotion Mapping (6: Happy, 7: Sad, 8: Angry, 9: Surprised)
+          const emotions = {
+            happy: (emotion === 'happy' || emotion === 'joy' || emotion === 'loving') ? 0.9 : 0,
+            sad: (emotion === 'sad' || emotion === 'bored' || emotion === 'anxious') ? 0.9 : 0,
+            angry: (emotion === 'angry' || emotion === 'annoyed') ? 0.9 : 0,
+            surprised: (emotion === 'surprised' || emotion === 'curious' || emotion === 'confused') ? 0.8 : 0,
+          };
 
-        // 1. Blinking (on Mesh 27/28 typically eyes)
-        // Natural blink frequency (every ~4-6 seconds)
-        const blinkBase = Math.sin(t * 1.2) > 0.96 ? 1 : 0;
-        const blink = THREE.MathUtils.lerp(obj.morphTargetInfluences[0] || 0, blinkBase, 0.3);
+          obj.morphTargetInfluences[6] = THREE.MathUtils.lerp(obj.morphTargetInfluences[6], emotions.happy, 0.1);
+          obj.morphTargetInfluences[7] = THREE.MathUtils.lerp(obj.morphTargetInfluences[7], emotions.sad, 0.1);
+          obj.morphTargetInfluences[8] = THREE.MathUtils.lerp(obj.morphTargetInfluences[8], emotions.angry, 0.1);
+          obj.morphTargetInfluences[9] = THREE.MathUtils.lerp(obj.morphTargetInfluences[9], emotions.surprised, 0.1);
 
-        // Apply blinking to meshes that look like eyes (usually 27, 28)
-        if (obj.name === '2' || obj.name === '1') {
-           obj.morphTargetInfluences[0] = blink;
-        }
-
-        // 2. Speaking (Mouth movements)
-        if (isSpeaking && (obj.name === '0')) { // Mesh 26 (name '0') is likely the face/mouth
-           // Simulate mouth opening
-           const mouthOpen = (Math.sin(t * 15) + 1) * 0.5;
-           obj.morphTargetInfluences[1] = THREE.MathUtils.lerp(obj.morphTargetInfluences[1], mouthOpen, 0.3);
-           obj.morphTargetInfluences[2] = THREE.MathUtils.lerp(obj.morphTargetInfluences[2], mouthOpen * 0.3, 0.3);
-        } else if (!isSpeaking && obj.name === '0') {
-           obj.morphTargetInfluences[1] = THREE.MathUtils.lerp(obj.morphTargetInfluences[1], 0, 0.1);
-        }
-
-        // 3. Emotions (Mapped to morph targets 6, 7, 8)
-        if (obj.name === '0') {
-          // Reset all emotion morphs first or lerp them to 0
-          const happyVal = (emotion === 'happy' || emotion === 'joy') ? 0.8 : 0;
-          const sadVal = (emotion === 'sad') ? 0.8 : 0;
-          const angryVal = (emotion === 'angry') ? 0.8 : 0;
-
-          obj.morphTargetInfluences[6] = THREE.MathUtils.lerp(obj.morphTargetInfluences[6], happyVal, 0.1);
-          obj.morphTargetInfluences[7] = THREE.MathUtils.lerp(obj.morphTargetInfluences[7], sadVal, 0.1);
-          obj.morphTargetInfluences[8] = THREE.MathUtils.lerp(obj.morphTargetInfluences[8], angryVal, 0.1);
-
-          // Legacy smile index (3) - keeping for compatibility or extra flair
-          obj.morphTargetInfluences[3] = THREE.MathUtils.lerp(obj.morphTargetInfluences[3], happyVal * 0.5, 0.1);
+          // Subtle blend: slightly happy eyes when surprised
+          if (emotion === 'surprised') {
+            obj.morphTargetInfluences[6] = THREE.MathUtils.lerp(obj.morphTargetInfluences[6], 0.3, 0.1);
+          }
         }
       }
     });
 
-    // Subtle breathing/floating
+    // Subtle breathing movement
     if (group.current) {
       group.current.position.y = Math.sin(t * 0.5) * 0.05;
     }
   });
 
-  // Mouse tracking for the head
+  // Interactive head tracking: Follow user's cursor
   useFrame((state) => {
     if (!group.current) return;
     const { x, y } = state.mouse;
-
-    // Find the head bone if possible, or just rotate the group slightly
-    // For this model, let's rotate the whole character slightly towards mouse
     group.current.rotation.y = THREE.MathUtils.lerp(group.current.rotation.y, x * 0.3, 0.1);
     group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, -y * 0.2, 0.1);
   });
 
-  // Scale: The model is ~150 units tall. We want it to be ~2 units tall in our view.
-  // 2 / 150 = 0.0133
-  const baseScale = 0.012;
+  // Scale the high-resolution model to fit the viewport perfectly
+  const baseScale = 2.2;
 
   return (
     <group ref={group} scale={baseScale} dispose={null}>
@@ -145,27 +132,24 @@ const Model = ({ emotion, isSpeaking, isListening, debugMorphIndex }: Elysia3DPr
 };
 
 const Elysia3D: React.FC<Elysia3DProps> = (props) => {
-  const { debugMorphIndex } = props;
   return (
-    <div style={{ width: '100%', height: '100%', minHeight: '500px' }}>
-      <Canvas shadows dpr={[1, 2]}>
-        <PerspectiveCamera makeDefault position={[0, 0.5, 4]} fov={45} />
-
+    <div className="w-full h-full min-h-[600px] relative">
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.3, 3.5], fov: 40 }} gl={{ antialias: true, alpha: true }}>
         <ambientLight intensity={0.6} />
-        <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1.5} castShadow />
-        <pointLight position={[-10, -10, -10]} intensity={0.5} />
-        <directionalLight position={[0, 5, 5]} intensity={1} />
+        <spotLight position={[5, 10, 5]} angle={0.3} penumbra={1} intensity={1.5} castShadow />
+        <pointLight position={[-5, 5, -5]} intensity={0.8} color="#e0f2fe" />
+        <directionalLight position={[0, 5, 0]} intensity={0.4} />
 
         <Suspense fallback={null}>
           <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.2}>
             <Model {...props} />
           </Float>
-          <Environment preset="city" />
+          <Environment preset="apartment" blur={0.8} />
           <ContactShadows
             position={[0, -1, 0]}
-            opacity={0.4}
-            scale={10}
-            blur={2}
+            opacity={0.5}
+            scale={12}
+            blur={2.5}
             far={4.5}
           />
         </Suspense>
