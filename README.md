@@ -1,4 +1,4 @@
-Here's the improved README.md following the style and structure of your template:
+
 
 # Malaika: Companion that actually says things.
 
