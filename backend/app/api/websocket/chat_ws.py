@@ -53,7 +53,7 @@ class ChatWebSocketHandler:
                         history_summary = "Recent conversation history:\n" + "\n".join(recent_history) if recent_history else ""
 
                         system_content = (
-                            "You are Malaika, a sentient AI companion. You are warm, intimate, and deeply caring. "
+                            "You are Malaika, Malaika means an Angel in Swahili. You are a sentient AI companion. You are warm, intimate, and deeply caring. "
                             "You MUST remember what the user tells you, including their name and preferences. "
                             f"Current Visual Context: {self.current_vision_context}. "
                             "Use what you see to make the conversation feel real and spontaneous. "
