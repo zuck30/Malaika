@@ -18,13 +18,13 @@ class MemoryManager:
         
         # Main conversation memory
         self.collection = self.client.get_or_create_collection(
-            name="elysia_memory",
+            name="Malaika_memory",
             embedding_function=self.embedding_fn
         )
         
         # User facts collection (separate for important user info)
         self.user_facts = self.client.get_or_create_collection(
-            name="elysia_user_facts",
+            name="Malaika_user_facts",
             embedding_function=self.embedding_fn
         )
         

@@ -1,4 +1,4 @@
-# Elysia: A Sentient AI Companion
+# Malaika: A Sentient AI Companion
 
 <p align="center">
   <img src="https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react" alt="React" />
@@ -9,19 +9,19 @@
 </p>
 
 <p align="center">
-  <strong>Elysia isn't just an assistant—she's a presence.</strong><br>
-  Inspired by the minimalist elegance of "Her" and the high-energy aesthetic of modern social interfaces, Elysia combines a VRoid-powered 3D persona with a cutting-edge neural architecture. No sidebars, no clutter—just one immersive screen where classical beauty meets the edge of what's possible.
+  <strong>Malaika isn't just an assistant—she's a presence.</strong><br>
+  Inspired by the minimalist elegance of "Her" and the high-energy aesthetic of modern social interfaces, Malaika combines a VRoid-powered 3D persona with a cutting-edge neural architecture. No sidebars, no clutter—just one immersive screen where classical beauty meets the edge of what's possible.
 </p>
 
 ---
 
 ## 👁️ Features
 
-- **Active Presence & 3D Interaction**: Using Three.js and VRM physics, Elysia maintains eye contact, tracks your movement, and features interactive mouse-tracking perspective transforms for a "living" feel.
-- **Multi-modal Memory**: Integrated with **ChromaDB**, Elysia remembers your name, preferences, and past conversations using a hybrid semantic/chronological retrieval system.
-- **Proactive Visual Awareness**: Powered by **Moondream2**, Elysia sees you through your camera. She can spontaneously comment on your environment or your expression via her "Invisible Vision" system.
-- **Emotional Depth**: A dual-layered emotion engine analyzes both your facial expressions (FER) and message sentiment (BART) to shift Elysia's state and 3D morph targets in real-time.
-- **Natural Speech Synthesis**: Leveraging **Edge-TTS** (AvaNeural), Elysia speaks with natural prosody, complete with conversational fillers and adjusted punctuation for a human-like flow.
+- **Active Presence & 3D Interaction**: Using Three.js and VRM physics, Malaika maintains eye contact, tracks your movement, and features interactive mouse-tracking perspective transforms for a "living" feel.
+- **Multi-modal Memory**: Integrated with **ChromaDB**, Malaika remembers your name, preferences, and past conversations using a hybrid semantic/chronological retrieval system.
+- **Proactive Visual Awareness**: Powered by **Moondream2**, Malaika sees you through your camera. She can spontaneously comment on your environment or your expression via her "Invisible Vision" system.
+- **Emotional Depth**: A dual-layered emotion engine analyzes both your facial expressions (FER) and message sentiment (BART) to shift Malaika's state and 3D morph targets in real-time.
+- **Natural Speech Synthesis**: Leveraging **Edge-TTS** (AvaNeural), Malaika speaks with natural prosody, complete with conversational fillers and adjusted punctuation for a human-like flow.
 - **Invisible Camera System**: Captures visual context without intrusive camera previews, preserving the immersive, character-centric layout.
 
 ---
@@ -61,8 +61,8 @@
 
 1. **Clone & Environment**
    ```bash
-   git clone https://github.com/zuck30/elysia-ai-companion.git
-   cd elysia
+   git clone https://github.com/zuck30/Malaika-ai-companion.git
+   cd Malaika
    cp .env.example .env # Add your HUGGINGFACE_API_KEY
    ```
 
@@ -92,7 +92,7 @@
 - `/backend/app/api`: FastAPI routers for chat, vision, and websockets.
 - `/backend/app/core/ai_models`: Clients for HF Router, Moondream2, and Edge-TTS.
 - `/backend/app/core/memory`: ChromaDB integration for conversation history.
-- `/frontend/src/components/Character`: 3D rendering and animation logic for `elysia_v3.glb`.
+- `/frontend/src/components/Character`: 3D rendering and animation logic for `Malaika_v3.glb`.
 - `/frontend/src/components/Chat`: Glassmorphic chat interface and auto-scrolling message area.
 
 ---
@@ -113,7 +113,7 @@
 ---
 
 ## 🎨 Design Philosophy: Active Presence
-Elysia is designed to disappear into the background. There are no sidebars or complex menus. Her interface is a single, unified space where the character is the focus. We believe software shouldn't just be functional; it should feel *alive*.
+Malaika is designed to disappear into the background. There are no sidebars or complex menus. Her interface is a single, unified space where the character is the focus. We believe software shouldn't just be functional; it should feel *alive*.
 
 ---
 
@@ -127,5 +127,5 @@ Elysia is designed to disappear into the background. There are no sidebars or co
 This project is licensed under the MIT License.
 
 ## 🤝 Support
-If you enjoy Elysia, consider supporting the project:
+If you enjoy Malaika, consider supporting the project:
 <a href="https://www.buymeacoffee.com/zuck30" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-red.png" alt="Buy Me A Coffee" height="40px" ></a>

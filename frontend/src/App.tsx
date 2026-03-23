@@ -9,8 +9,8 @@ import {
   setTyping,
   setCameraActive,
   setVisionAnalysis,
-} from './store/elysiaSlice';
-import ElysiaCharacter from './components/Character/Elysia3D';
+} from './store/MalaikaSlice';
+import MalaikaCharacter from './components/Character/Malaika3D';
 import ChatInterface from './components/Chat/ChatInterface';
 import CameraFeed from './components/Camera/CameraFeed';
 import Webcam from 'react-webcam';
@@ -24,7 +24,7 @@ const WS_BASE = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
 const App: React.FC = () => {
   const dispatch = useDispatch();
   const { messages, emotion, isSpeaking, isListening, isTyping, cameraActive, visionAnalysis } =
-    useSelector((state: RootState) => state.elysia);
+    useSelector((state: RootState) => state.Malaika);
 
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const webcamRef = React.useRef<Webcam>(null);
@@ -55,12 +55,12 @@ const App: React.FC = () => {
     try {
       dispatch(setTyping(true));
       const response = await axios.post(`${API_BASE}/api/chat/voice`, formData);
-      const { user_text, response: elysia_response } = response.data;
+      const { user_text, response: Malaika_response } = response.data;
 
       dispatch(addMessage({ role: 'user', content: user_text }));
-      dispatch(addMessage({ role: 'elysia', content: elysia_response }));
+      dispatch(addMessage({ role: 'Malaika', content: Malaika_response }));
       dispatch(setTyping(false));
-      handleSpeak(elysia_response);
+      handleSpeak(Malaika_response);
     } catch (err) {
       console.error('Voice processing failed', err);
       dispatch(setTyping(false));
@@ -85,7 +85,7 @@ const App: React.FC = () => {
       const data = JSON.parse(event.data);
       if (data.type === 'chat_response') {
         dispatch(setTyping(false));
-        dispatch(addMessage({ role: 'elysia', content: data.text }));
+        dispatch(addMessage({ role: 'Malaika', content: data.text }));
         dispatch(setEmotion(data.emotion));
         handleSpeak(data.text);
       }
@@ -93,7 +93,7 @@ const App: React.FC = () => {
 
     setSocket(ws);
     return () => ws.close();
-  }, [dispatch]);
+  }, [dispatch, handleSpeak]);
 
   const sendMessage = async (text: string) => {
     dispatch(addMessage({ role: 'user', content: text }));
@@ -118,12 +118,12 @@ const App: React.FC = () => {
           formData.append('file', blob, 'vision.jpg');
 
           const response = await axios.post(`${API_BASE}/api/chat/vision-chat`, formData);
-          const { response: elysia_response, emotion: new_emotion } = response.data;
+          const { response: Malaika_response, emotion: new_emotion } = response.data;
 
           dispatch(setTyping(false));
-          dispatch(addMessage({ role: 'elysia', content: elysia_response }));
+          dispatch(addMessage({ role: 'Malaika', content: Malaika_response }));
           if (new_emotion) dispatch(setEmotion(new_emotion));
-          handleSpeak(elysia_response);
+          handleSpeak(Malaika_response);
           return;
         } catch (err) {
           console.error('Vision chat failed, falling back to standard chat', err);
@@ -154,19 +154,19 @@ const App: React.FC = () => {
       formData.append('file', blob, 'frame.jpg');
 
       const response = await axios.post(`${API_BASE}/api/chat/vision-chat`, formData);
-      const { response: elysia_response, emotion: new_emotion, visual_description } = response.data;
+      const { response: Malaika_response, emotion: new_emotion, visual_description } = response.data;
 
       // Only respond if the description changed or enough time has passed (to avoid chatter)
       // Here we trust the backend's specific descriptions to drive spontaneity
       if (visual_description && visual_description !== lastAnalysisRef.current) {
         lastAnalysisRef.current = visual_description;
 
-        // Only actually "say" something if Elysia is not already talking
+        // Only actually "say" something if Malaika is not already talking
         if (!isSpeaking) {
           dispatch(setVisionAnalysis(visual_description));
-          dispatch(addMessage({ role: 'elysia', content: elysia_response }));
+          dispatch(addMessage({ role: 'Malaika', content: Malaika_response }));
           if (new_emotion) dispatch(setEmotion(new_emotion));
-          handleSpeak(elysia_response);
+          handleSpeak(Malaika_response);
         }
       }
     } catch (err) {
@@ -200,7 +200,7 @@ const App: React.FC = () => {
       {/* Character Visualization */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
         <div className="w-full h-full transition-opacity duration-700 pointer-events-auto">
-          <ElysiaCharacter
+          <MalaikaCharacter
             emotion={emotion}
             isSpeaking={isSpeaking}
             isListening={isListening || isTyping}

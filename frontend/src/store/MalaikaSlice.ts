@@ -1,11 +1,11 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface Message {
-  role: 'user' | 'elysia';
+  role: 'user' | 'Malaika';
   content: string;
 }
 
-interface ElysiaState {
+interface MalaikaState {
   messages: Message[];
   emotion: string;
   isSpeaking: boolean;
@@ -15,9 +15,9 @@ interface ElysiaState {
   visionAnalysis: string | null;
 }
 
-const initialState: ElysiaState = {
+const initialState: MalaikaState = {
   messages: [
-    { role: 'elysia', content: "Hello. I'm Elysia. I'm an AI Companion, made in Tanzania. Nice to meet you." }
+    { role: 'Malaika', content: "Hello. I'm Malaika. I'm an AI Companion, made in Tanzania. Nice to meet you." }
   ],
   emotion: 'neutral',
   isSpeaking: false,
@@ -27,8 +27,8 @@ const initialState: ElysiaState = {
   visionAnalysis: null,
 };
 
-const elysiaSlice = createSlice({
-  name: 'elysia',
+const MalaikaSlice = createSlice({
+  name: 'Malaika',
   initialState,
   reducers: {
     addMessage: (state, action: PayloadAction<Message>) => {
@@ -63,6 +63,6 @@ export const {
   setTyping,
   setCameraActive,
   setVisionAnalysis
-} = elysiaSlice.actions;
+} = MalaikaSlice.actions;
 
-export default elysiaSlice.reducer;
+export default MalaikaSlice.reducer;

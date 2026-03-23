@@ -11,15 +11,15 @@ import {
 } from '@react-three/drei';
 import * as THREE from 'three';
 
-interface Elysia3DProps {
+interface Malaika3DProps {
   emotion?: string;
   isSpeaking?: boolean;
   isListening?: boolean;
 }
 
-const Model = ({ emotion, isSpeaking, isListening }: Elysia3DProps) => {
+const Model = ({ emotion, isSpeaking, isListening }: Malaika3DProps) => {
   const group = useRef<THREE.Group>(null);
-  const { animations, scene } = useGLTF("/models/elysia_v3.glb") as any;
+  const { animations, scene } = useGLTF("/models/Malaika_v3.glb") as any;
   const { actions } = useAnimations(animations, group);
 
   // Optimize and enhance materials for a high-quality "designed" look
@@ -67,7 +67,7 @@ const Model = ({ emotion, isSpeaking, isListening }: Elysia3DProps) => {
 
     scene.traverse((obj: any) => {
       if (obj instanceof THREE.Mesh && obj.morphTargetInfluences) {
-        // Targets for elysia_v3.glb (Shibahu model)
+        // Targets for Malaika_v3.glb (Shibahu model)
         // Usually Object_69, Object_70, Object_71 are the head/face meshes
         const isHeadMesh = obj.name === 'Object_69' || obj.name === 'Object_70' || obj.name === 'Object_71';
 
@@ -124,7 +124,7 @@ const Model = ({ emotion, isSpeaking, isListening }: Elysia3DProps) => {
   );
 };
 
-const Elysia3D: React.FC<Elysia3DProps> = (props) => {
+const Malaika3D: React.FC<Malaika3DProps> = (props) => {
   return (
     <div className="w-full h-full min-h-[600px] relative">
       <Canvas shadows dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
@@ -153,4 +153,4 @@ const Elysia3D: React.FC<Elysia3DProps> = (props) => {
   );
 };
 
-export default Elysia3D;
+export default Malaika3D;

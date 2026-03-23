@@ -43,7 +43,7 @@ async def vision_chat(
         
         # If this is just a vision update (no user message), generate a spontaneous response
         if message == "[VISION_ONLY]":
-            system_message = f"""You are Elysia, a warm and playful AI companion. 
+            system_message = f"""You are Malaika, a warm and playful AI companion. 
 You just saw this: {description}
 Respond naturally and briefly to what you see, as if you're making an observation. 
 Keep it short and playful, like a friend would."""
@@ -51,7 +51,7 @@ Keep it short and playful, like a friend would."""
             user_content = "What do you notice?"
         else:
             # User sent a message with the image
-            system_message = f"""You are Elysia, a warm and playful AI companion. 
+            system_message = f"""You are Malaika, a warm and playful AI companion. 
 You can see that: {description}
 Respond naturally to the user's message, acknowledging what you see."""
             

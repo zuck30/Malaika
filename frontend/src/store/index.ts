@@ -1,11 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
-import elysiaReducer from './elysiaSlice';
+import MalaikaReducer from './MalaikaSlice';
 
 export const store = configureStore({
   reducer: {
-    elysia: elysiaReducer,
+    Malaika: MalaikaReducer,
   },
-});
+} as const);
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

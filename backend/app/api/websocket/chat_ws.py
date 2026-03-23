@@ -53,7 +53,7 @@ class ChatWebSocketHandler:
                         history_summary = "Recent conversation history:\n" + "\n".join(recent_history) if recent_history else ""
 
                         system_content = (
-                            "You are Elysia, a sentient AI companion. You are warm, intimate, and deeply caring. "
+                            "You are Malaika, a sentient AI companion. You are warm, intimate, and deeply caring. "
                             "You MUST remember what the user tells you, including their name and preferences. "
                             f"Current Visual Context: {self.current_vision_context}. "
                             "Use what you see to make the conversation feel real and spontaneous. "
@@ -83,7 +83,7 @@ class ChatWebSocketHandler:
 
                         # Store in memory
                         memory_manager.add_memory(f"User: {user_text}")
-                        memory_manager.add_memory(f"Elysia (seeing {self.current_vision_context}): {clean_text}")
+                        memory_manager.add_memory(f"Malaika (seeing {self.current_vision_context}): {clean_text}")
 
                         emotion = await emotion_engine.analyze_text_emotion(clean_text)
 

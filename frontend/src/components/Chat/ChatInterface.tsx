@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import EmojiPicker, { Theme, EmojiStyle } from 'emoji-picker-react';
 
 interface Message {
-  role: 'user' | 'elysia';
+  role: 'user' | 'Malaika';
   content: string;
   timestamp?: string;
   id?: string;
@@ -171,7 +171,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   ))}
                 </div>
                 <span className="text-xs font-black text-sky-600/70 uppercase tracking-widest">
-                  Elysia is typing
+                  Malaika is typing
                 </span>
               </motion.div>
             )}
@@ -231,7 +231,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isListening ? 'Listening...' : 'Chat with Elysia...'}
+              placeholder={isListening ? 'Listening...' : 'Chat with Malaika...'}
               disabled={isListening}
               className="flex-1 bg-transparent border-none py-2 px-4 text-[#1e2b3c] placeholder:text-sky-600/40 focus:outline-none font-medium text-[16px] disabled:opacity-50"
             />
