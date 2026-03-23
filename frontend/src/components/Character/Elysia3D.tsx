@@ -1,5 +1,5 @@
-import React, { Suspense, useEffect, useRef, useMemo } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import React, { Suspense, useEffect, useRef } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import {
   useGLTF,
   useAnimations,
@@ -27,9 +27,11 @@ const Model = ({ emotion, isSpeaking, isListening }: Elysia3DProps) => {
     scene.traverse((obj: any) => {
       if (obj.isMesh) {
         // Hide irrelevant helper/grid meshes
+        // Object_8 in the Shibahu model is a redundant face mesh that obscures the real face
         if (obj.name.toLowerCase().includes('base_mesh') ||
             obj.name.toLowerCase().includes('line_gp') ||
-            obj.name.toLowerCase().includes('grid')) {
+            obj.name.toLowerCase().includes('grid') ||
+            obj.name === 'Object_8') {
           obj.visible = false;
         }
 
@@ -65,42 +67,36 @@ const Model = ({ emotion, isSpeaking, isListening }: Elysia3DProps) => {
 
     scene.traverse((obj: any) => {
       if (obj instanceof THREE.Mesh && obj.morphTargetInfluences) {
-        // Targets found on Object_69, Object_70, Object_71
+        // Targets for elysia_v3.glb (Shibahu model)
+        // Usually Object_69, Object_70, Object_71 are the head/face meshes
         const isHeadMesh = obj.name === 'Object_69' || obj.name === 'Object_70' || obj.name === 'Object_71';
 
         if (isHeadMesh) {
-          // 1. Natural Blinking (Index 0)
+          // 1. Natural Blinking (Index 1)
           const blinkBase = Math.sin(t * 0.8) > 0.985 ? 1 : 0;
-          obj.morphTargetInfluences[0] = THREE.MathUtils.lerp(obj.morphTargetInfluences[0], blinkBase, 0.4);
+          obj.morphTargetInfluences[1] = THREE.MathUtils.lerp(obj.morphTargetInfluences[1], blinkBase, 0.4);
 
-          // 2. Dynamic Speech Animation (Index 1 & 2)
+          // 2. Dynamic Speech Animation (Index 0: Mouth Open, 3: Phonetic A, 8: Phonetic O)
           if (isSpeaking) {
-            const mouthA = (Math.sin(t * 15) + 1) * 0.45;
-            const mouthE = (Math.cos(t * 12) + 1) * 0.25;
-            obj.morphTargetInfluences[1] = THREE.MathUtils.lerp(obj.morphTargetInfluences[1], mouthA, 0.4);
-            obj.morphTargetInfluences[2] = THREE.MathUtils.lerp(obj.morphTargetInfluences[2], mouthE, 0.4);
+            const mouthOpen = (Math.sin(t * 15) + 1) * 0.45;
+            const mouthA = (Math.cos(t * 12) + 1) * 0.25;
+            obj.morphTargetInfluences[0] = THREE.MathUtils.lerp(obj.morphTargetInfluences[0], mouthOpen, 0.4);
+            obj.morphTargetInfluences[3] = THREE.MathUtils.lerp(obj.morphTargetInfluences[3], mouthA, 0.4);
           } else {
-            obj.morphTargetInfluences[1] = THREE.MathUtils.lerp(obj.morphTargetInfluences[1], 0, 0.2);
-            obj.morphTargetInfluences[2] = THREE.MathUtils.lerp(obj.morphTargetInfluences[2], 0, 0.2);
+            obj.morphTargetInfluences[0] = THREE.MathUtils.lerp(obj.morphTargetInfluences[0], 0, 0.2);
+            obj.morphTargetInfluences[3] = THREE.MathUtils.lerp(obj.morphTargetInfluences[3], 0, 0.2);
           }
 
-          // 3. Emotion Mapping (6: Happy, 7: Sad, 8: Angry, 9: Surprised)
+          // 3. Emotion Mapping (4: Joy/Happy, 13: Sad/Frown, 7: Angry)
           const emotions = {
             happy: (emotion === 'happy' || emotion === 'joy' || emotion === 'loving') ? 0.9 : 0,
             sad: (emotion === 'sad' || emotion === 'bored' || emotion === 'anxious') ? 0.9 : 0,
             angry: (emotion === 'angry' || emotion === 'annoyed') ? 0.9 : 0,
-            surprised: (emotion === 'surprised' || emotion === 'curious' || emotion === 'confused') ? 0.8 : 0,
           };
 
-          obj.morphTargetInfluences[6] = THREE.MathUtils.lerp(obj.morphTargetInfluences[6], emotions.happy, 0.1);
-          obj.morphTargetInfluences[7] = THREE.MathUtils.lerp(obj.morphTargetInfluences[7], emotions.sad, 0.1);
-          obj.morphTargetInfluences[8] = THREE.MathUtils.lerp(obj.morphTargetInfluences[8], emotions.angry, 0.1);
-          obj.morphTargetInfluences[9] = THREE.MathUtils.lerp(obj.morphTargetInfluences[9], emotions.surprised, 0.1);
-
-          // Subtle blend: slightly happy eyes when surprised
-          if (emotion === 'surprised') {
-            obj.morphTargetInfluences[6] = THREE.MathUtils.lerp(obj.morphTargetInfluences[6], 0.3, 0.1);
-          }
+          obj.morphTargetInfluences[4] = THREE.MathUtils.lerp(obj.morphTargetInfluences[4], emotions.happy, 0.1);
+          obj.morphTargetInfluences[13] = THREE.MathUtils.lerp(obj.morphTargetInfluences[13], emotions.sad, 0.1);
+          obj.morphTargetInfluences[7] = THREE.MathUtils.lerp(obj.morphTargetInfluences[7], emotions.angry, 0.1);
         }
       }
     });
@@ -119,22 +115,21 @@ const Model = ({ emotion, isSpeaking, isListening }: Elysia3DProps) => {
     group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, -y * 0.2, 0.1);
   });
 
-  // Scale the high-resolution model to fit the viewport perfectly
-  const baseScale = 2.2;
-
   return (
-    <group ref={group} scale={baseScale} dispose={null}>
-      <Center top>
+    <Center>
+      <group ref={group} scale={1.0} dispose={null}>
         <primitive object={scene} />
-      </Center>
-    </group>
+      </group>
+    </Center>
   );
 };
 
 const Elysia3D: React.FC<Elysia3DProps> = (props) => {
   return (
     <div className="w-full h-full min-h-[600px] relative">
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1.3, 3.5], fov: 40 }} gl={{ antialias: true, alpha: true }}>
+      <Canvas shadows dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
+        {/* Half-body view: Camera positioned higher and further back to see upper body and face */}
+        <PerspectiveCamera makeDefault position={[0, 0.5, 2.8]} fov={35} />
         <ambientLight intensity={0.6} />
         <spotLight position={[5, 10, 5]} angle={0.3} penumbra={1} intensity={1.5} castShadow />
         <pointLight position={[-5, 5, -5]} intensity={0.8} color="#e0f2fe" />
@@ -144,11 +139,11 @@ const Elysia3D: React.FC<Elysia3DProps> = (props) => {
           <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.2}>
             <Model {...props} />
           </Float>
-          <Environment preset="apartment" blur={0.8} />
+          <Environment preset="apartment" />
           <ContactShadows
-            position={[0, -1, 0]}
+            position={[0, -0.8, 0]}
             opacity={0.5}
-            scale={12}
+            scale={10}
             blur={2.5}
             far={4.5}
           />
