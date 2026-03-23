@@ -9,6 +9,7 @@ import {
   setTyping,
   setCameraActive,
   setVisionAnalysis,
+  setWsConnected,
 } from './store/MalaikaSlice';
 import MalaikaCharacter from './components/Character/Malaika3D';
 import ChatInterface from './components/Chat/ChatInterface';
@@ -23,7 +24,7 @@ const WS_BASE = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
-  const { messages, emotion, isSpeaking, isListening, isTyping, cameraActive, visionAnalysis } =
+  const { messages, emotion, isSpeaking, isListening, isTyping, cameraActive, visionAnalysis, wsConnected } =
     useSelector((state: RootState) => state.Malaika);
 
   const [socket, setSocket] = useState<WebSocket | null>(null);
@@ -32,7 +33,7 @@ const App: React.FC = () => {
   const lastAnalysisRef = useRef<string>('');
   const isProcessingVisionRef = useRef<boolean>(false);
 
-  const handleSpeak = async (text: string) => {
+  const handleSpeak = React.useCallback(async (text: string) => {
     try {
       const response = await axios.get(`${API_BASE}/api/chat/tts`, {
         params: { text },
@@ -46,9 +47,9 @@ const App: React.FC = () => {
     } catch (err) {
       console.error('TTS failed', err);
     }
-  };
+  }, [dispatch]);
 
-  const handleVoiceInput = async (audioBlob: Blob) => {
+  const handleVoiceInput = React.useCallback(async (audioBlob: Blob) => {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'voice.wav');
 
@@ -65,37 +66,68 @@ const App: React.FC = () => {
       console.error('Voice processing failed', err);
       dispatch(setTyping(false));
     }
-  };
+  }, [dispatch, handleSpeak]);
 
   const { toggleRecording } = useVoiceRecorder((blob) => {
     dispatch(setListening(false));
     handleVoiceInput(blob);
   });
 
-  const handleToggleListening = () => {
+  const handleToggleListening = React.useCallback(() => {
     const nextState = !isListening;
     dispatch(setListening(nextState));
     toggleRecording();
-  };
+  }, [dispatch, isListening, toggleRecording]);
 
   useEffect(() => {
-    const ws = new WebSocket(`${WS_BASE}/ws/chat`);
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
 
-    ws.onmessage = async (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'chat_response') {
-        dispatch(setTyping(false));
-        dispatch(addMessage({ role: 'Malaika', content: data.text }));
-        dispatch(setEmotion(data.emotion));
-        handleSpeak(data.text);
-      }
+    const connect = () => {
+      ws = new WebSocket(`${WS_BASE}/ws/chat`);
+
+      ws.onopen = () => {
+        console.log('WebSocket Connected');
+        dispatch(setWsConnected(true));
+      };
+
+      ws.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'chat_response') {
+          dispatch(setTyping(false));
+          dispatch(addMessage({ role: 'Malaika', content: data.text }));
+          dispatch(setEmotion(data.emotion));
+          handleSpeak(data.text);
+        }
+      };
+
+      ws.onclose = (e) => {
+        console.log('WebSocket Disconnected', e.reason);
+        dispatch(setWsConnected(false));
+        setSocket(null);
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket Error', err);
+        ws?.close();
+      };
+
+      setSocket(ws);
     };
 
-    setSocket(ws);
-    return () => ws.close();
+    connect();
+
+    return () => {
+      if (ws) {
+        ws.onclose = null; // Prevent reconnection on cleanup
+        ws.close();
+      }
+      clearTimeout(reconnectTimeout);
+    };
   }, [dispatch, handleSpeak]);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = React.useCallback(async (text: string) => {
     dispatch(addMessage({ role: 'user', content: text }));
     dispatch(setTyping(true));
 
@@ -131,10 +163,16 @@ const App: React.FC = () => {
       }
     }
 
-    socket?.send(JSON.stringify({ type: 'chat', text }));
-  };
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'chat', text }));
+    } else {
+      console.error('WebSocket is not connected');
+      dispatch(setTyping(false));
+      dispatch(addMessage({ role: 'Malaika', content: 'Connection lost. Retrying...' }));
+    }
+  }, [cameraActive, dispatch, handleSpeak, socket]);
 
-  const handleFrame = async (imageSrc: string) => {
+  const handleFrame = React.useCallback(async (imageSrc: string) => {
     if (isProcessingVisionRef.current || isSpeaking) return;
 
     isProcessingVisionRef.current = true;
@@ -177,7 +215,7 @@ const App: React.FC = () => {
         isProcessingVisionRef.current = false;
       }, 10000); // 10 second cooldown between proactive comments
     }
-  };
+  }, [dispatch, handleSpeak, isSpeaking]);
 
   return (
     <div
@@ -241,6 +279,7 @@ const App: React.FC = () => {
           onVoiceInput={handleVoiceInput}
           toggleCamera={() => dispatch(setCameraActive(!cameraActive))}
           isCameraActive={cameraActive}
+          isWsConnected={wsConnected}
         />
       </main>
     </div>

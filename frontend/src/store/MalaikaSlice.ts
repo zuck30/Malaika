@@ -13,6 +13,7 @@ interface MalaikaState {
   isTyping: boolean;
   cameraActive: boolean;
   visionAnalysis: string | null;
+  wsConnected: boolean;
 }
 
 const initialState: MalaikaState = {
@@ -25,6 +26,7 @@ const initialState: MalaikaState = {
   isTyping: false,
   cameraActive: false,
   visionAnalysis: null,
+  wsConnected: false,
 };
 
 const MalaikaSlice = createSlice({
@@ -51,6 +53,9 @@ const MalaikaSlice = createSlice({
     },
     setVisionAnalysis: (state, action: PayloadAction<string | null>) => {
       state.visionAnalysis = action.payload;
+    },
+    setWsConnected: (state, action: PayloadAction<boolean>) => {
+      state.wsConnected = action.payload;
     }
   },
 });
@@ -62,7 +67,8 @@ export const {
   setListening, 
   setTyping,
   setCameraActive,
-  setVisionAnalysis
+  setVisionAnalysis,
+  setWsConnected
 } = MalaikaSlice.actions;
 
 export default MalaikaSlice.reducer;
