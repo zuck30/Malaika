@@ -20,6 +20,7 @@ interface ChatInterfaceProps {
   onVoiceInput: (blob: Blob) => void;
   toggleCamera: () => void;
   isCameraActive: boolean;
+  isWsConnected: boolean;
 }
 
 const ChatMessage = memo(({ msg, index }: { msg: Message; index: number }) => {
@@ -73,6 +74,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onVoiceInput,
   toggleCamera,
   isCameraActive,
+  isWsConnected,
 }) => {
   const [input, setInput] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -231,8 +233,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isListening ? 'Listening...' : 'Chat with Malaika...'}
-              disabled={isListening}
+              placeholder={
+                !isWsConnected
+                  ? 'Connecting...'
+                  : isListening
+                    ? 'Listening...'
+                    : 'Chat with Malaika...'
+              }
+              disabled={isListening || !isWsConnected}
               className="flex-1 bg-transparent border-none py-2 px-4 text-[#1e2b3c] placeholder:text-sky-600/40 focus:outline-none font-medium text-[16px] disabled:opacity-50"
             />
 
@@ -267,9 +275,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 whileTap={{ scale: 0.85 }}
                 whileHover={{ scale: 1.05 }}
                 type="submit"
-                disabled={!input.trim() || isListening}
+                disabled={!input.trim() || isListening || !isWsConnected}
                 className={`p-3 rounded-full ml-1 transition-all ${
-                  input.trim() && !isListening
+                  input.trim() && !isListening && isWsConnected
                     ? 'bg-sky-500 text-white shadow-lg shadow-sky-300/50'
                     : 'bg-white/30 text-sky-600/30 cursor-not-allowed'
                 }`}
