@@ -18,6 +18,7 @@ import Webcam from 'react-webcam';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useVoiceRecorder } from './hooks/useVoiceRecorder';
+import { useWakeWord } from './hooks/useWakeWord';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const WS_BASE = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
@@ -68,7 +69,7 @@ const App: React.FC = () => {
     }
   }, [dispatch, handleSpeak]);
 
-  const { toggleRecording } = useVoiceRecorder((blob) => {
+  const { toggleRecording, startRecording, stopRecording } = useVoiceRecorder((blob) => {
     dispatch(setListening(false));
     handleVoiceInput(blob);
   });
@@ -78,6 +79,14 @@ const App: React.FC = () => {
     dispatch(setListening(nextState));
     toggleRecording();
   }, [dispatch, isListening, toggleRecording]);
+
+  // Wake word detection
+  useWakeWord('Malaika', () => {
+    if (!isListening && !isSpeaking) {
+      dispatch(setListening(true));
+      startRecording();
+    }
+  }, !isListening && !isSpeaking);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
