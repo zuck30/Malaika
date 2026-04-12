@@ -7,6 +7,7 @@ from app.core.ai_models.hf_client import hf_client
 from app.core.ai_models.emotion_engine import emotion_engine
 from app.core.memory.vector_store import memory_manager
 from app.core.ai_models.local_vision import local_vision_client
+from app.core.actions.executor import action_executor
 
 class ChatWebSocketHandler:
     def __init__(self):
@@ -58,7 +59,10 @@ class ChatWebSocketHandler:
                             f"Current Visual Context: {self.current_vision_context}. "
                             "Use what you see to make the conversation feel real and spontaneous. "
                             "Proactively comment on what you see the user doing. "
-                            "Respond naturally, don't use markdown or asterisks for actions."
+                            "Respond naturally, don't use markdown or asterisks for actions. "
+                            "ACTION ENGINE (JARVIS MODE): You can control the user's computer. Use these commands: "
+                            "[ACTION: OPEN_APP(app_name)], [ACTION: SEARCH_WEB(query)], [ACTION: SYSTEM_STATUS()]. "
+                            "Include the command at the END of your response."
                         )
 
                         if context_summary:
@@ -74,6 +78,12 @@ class ChatWebSocketHandler:
 
                         response_text = await hf_client.chat_completion(messages)
                         
+                        # Handle actions
+                        action_match = re.search(r'\[ACTION: (.*?)\]', response_text)
+                        if action_match:
+                            action_str = action_match.group(1)
+                            action_result = action_executor.execute_action(action_str)
+
                         # Clean up response text for display - Remove markdown, actions and parenthetical notes
                         clean_text = response_text.replace("**", "")
                         clean_text = re.sub(r'\*.*?\*', '', clean_text)

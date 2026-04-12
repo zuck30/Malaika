@@ -14,6 +14,7 @@ from pydantic import BaseModel
 # Import Local vision client
 from app.core.ai_models.local_vision import local_vision_client
 from app.core.memory.vector_store import memory_manager
+from app.core.actions.executor import action_executor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -87,6 +88,13 @@ CRITICAL RULES:
 6. Remember everything the user tells you - their name, preferences, and our conversations matter to you
 7. Be warm, playful, and natural - like a close friend or partner
 
+ACTION ENGINE (JARVIS MODE):
+You can control the user's computer. When the user asks you to do something on their PC, use these commands:
+- [ACTION: OPEN_APP(app_name)] to open an application
+- [ACTION: SEARCH_WEB(query)] to search for something on the web
+- [ACTION: SYSTEM_STATUS()] to check CPU/RAM usage
+Include the command at the END of your response. Be helpful and confirm the action.
+
 IMPORTANT: Just be yourself and speak naturally. Your words should flow like a real conversation."""
 
     # Add memory context
@@ -137,6 +145,14 @@ async def chat_text(request: ChatRequest):
     ]
 
     response_text = await hf_client.chat_completion(messages)
+
+    # Handle actions
+    action_match = re.search(r'\[ACTION: (.*?)\]', response_text)
+    if action_match:
+        action_str = action_match.group(1)
+        action_result = action_executor.execute_action(action_str)
+        # Optionally append action result to memory or response
+        logger.info(f"Action result: {action_result}")
 
     # Clean up response to ensure character consistency
     clean_text = clean_Malaika_response(response_text)
@@ -234,6 +250,13 @@ async def vision_chat(
     try:
         response_text = await hf_client.chat_completion(messages)
         logger.info(f" Raw response: {response_text[:100]}...")
+
+        # Handle actions
+        action_match = re.search(r'\[ACTION: (.*?)\]', response_text)
+        if action_match:
+            action_str = action_match.group(1)
+            action_result = action_executor.execute_action(action_str)
+            logger.info(f"Action result: {action_result}")
 
         # Clean up response to ensure character consistency
         clean_text = clean_Malaika_response(response_text)
