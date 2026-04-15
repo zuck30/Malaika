@@ -1,11 +1,15 @@
 
 
-# Malaika: Companion that actually says things.
+# Malaika: Artificial Intelligence Companion that actually says things.
 
-![Banner](https://capsule-render.vercel.app/api?type=venom&height=200&color=0:61DAFB,100:8A2BE2&text=Malaika&textBg=false&desc=(A+Sentient+AI+Companion)&descAlign=79&fontAlign=50&descAlignY=70&fontColor=f7f5f5)
+![Shot](screenshots/shot-1.png)
+
+
+
+![Banner](https://capsule-render.vercel.app/api?type=venom&height=200&color=0:61DAFB,100:8A2BE2&text=Malaika&textBg=false&desc=(AI+Companion)&descAlign=79&fontAlign=50&descAlignY=70&fontColor=f7f5f5)
 
 <p align="center">
-Malaika isn't just a companion, she's a presence. Inspired by the minimalist elegance of "Her" and the high-energy aesthetic of modern social interfaces, Malaika combines a 3D persona with a cutting-edge neural architecture. No sidebars, no clutter just one immersive screen where classical beauty meets the edge of what's possible.
+Malaika isn't just a companion, she's a presence. Inspired by the minimalist elegance of "Her" my favorite movie, and the high energy aesthetic of modern social interfaces.
 </p>
 
 ![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react) ![FastAPI](https://img.shields.io/badge/FastAPI-0.104.0-009688?logo=fastapi) ![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-blue) ![Llama](https://img.shields.io/badge/Llama--3.2-HF%20Router-FFD21E) ![Moondream2](https://img.shields.io/badge/Moondream2-VLM-8A2BE2)
@@ -97,8 +101,6 @@ Malaika isn't just a companion, she's a presence. Inspired by the minimalist ele
 2.  Interact with Malaika through voice or text.
 3.  Experience a living, breathing AI companion.
 
-<h2> I need coffee to stay alive. Yes i'm that Dumb.</h2>
-
 ## License
 
 This project is licensed under the MIT License.
@@ -106,5 +108,3 @@ This project is licensed under the MIT License.
 ## Support
 
 If you have any questions or issues, please open an issue on GitHub or contact mwalyangashadrack@gmail.com
-
-## Companion that actually says things! 
