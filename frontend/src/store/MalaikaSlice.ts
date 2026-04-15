@@ -17,9 +17,7 @@ interface MalaikaState {
 }
 
 const initialState: MalaikaState = {
-  messages: [
-    { role: 'Malaika', content: "Hello. I'm Malaika. I'm an AI Companion, made in Tanzania. Nice to meet you." }
-  ],
+  messages: [ ],
   emotion: 'neutral',
   isSpeaking: false,
   isListening: false,
