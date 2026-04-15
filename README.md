@@ -1,6 +1,6 @@
 
 
-# Malaika: Artificial Intelligence Companion that actually says things.
+# Artificial Intelligence Companion that actually says things.
 
 ![Shot](screenshots/shot-1.png)
 
