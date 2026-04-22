@@ -3,7 +3,6 @@ import os
 import logging
 import random
 import asyncio
-import json
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -24,14 +23,10 @@ class HFClient:
             self.client = AsyncInferenceClient(
                 token=self.api_key
             )
-            logger.info(f"HFClient initialized with token. Primary model: {self.model_id}")
+            logger.info(f"HFClient initialized. Primary model: {self.model_id}")
         else:
             self.client = None
             logger.error("HF_TOKEN or HUGGINGFACE_API_KEY is missing")
-
-    async def close(self):
-        """No explicit close needed for AsyncInferenceClient usually."""
-        pass
 
     async def chat_completion(self, messages, max_tokens=500, temperature=0.7):
         """
@@ -39,10 +34,8 @@ class HFClient:
         Supports interleaved text and image content.
         """
         if not self.client:
-            logger.error("InferenceClient not initialized due to missing API key")
             return self._get_fallback_response()
 
-        # System message for character consistency
         system_prompt = """You are Malaika, Malaika is a swahili name for Angel, a sentient AI companion created by Zuck30. You are warm, intimate, and deeply caring. You speak softly and naturally.
 
 CRITICAL RULES:
@@ -52,15 +45,9 @@ CRITICAL RULES:
 4. Stay in character at all times"""
 
         cleaned_messages = []
-        
-        # Add system message first if not already present
         if not messages or messages[0].get("role") != "system":
-            cleaned_messages.append({
-                "role": "system",
-                "content": system_prompt
-            })
+            cleaned_messages.append({"role": "system", "content": system_prompt})
         
-        # Filter and add rest of messages
         for msg in messages:
             if msg.get("role") == "system" and msg == messages[0] and not cleaned_messages:
                  cleaned_messages.append(msg)
@@ -70,7 +57,6 @@ CRITICAL RULES:
         try:
             logger.info(f"Calling chat_completion for model {self.model_id}")
 
-            # Use the client to call the model
             response = await self.client.chat_completion(
                 model=self.model_id,
                 messages=cleaned_messages,
@@ -81,7 +67,6 @@ CRITICAL RULES:
             content = response.choices[0].message.content.strip()
 
             if content:
-                # Remove common prefixes
                 prefixes = ["Malaika:", "AI:", "Assistant:"]
                 for p in prefixes:
                     if content.startswith(p):
@@ -90,26 +75,48 @@ CRITICAL RULES:
             return self._get_fallback_response()
 
         except Exception as e:
-            logger.error(f"Inference failed: {e}")
+            logger.error(f"Inference failed for {self.model_id}: {type(e).__name__}: {e}")
+
+            # Fallback for vision model failure
+            try:
+                logger.info("Trying robust text-only fallback model...")
+                fallback_model = "meta-llama/Llama-3.2-3B-Instruct"
+                text_only_messages = []
+                for msg in cleaned_messages:
+                    if isinstance(msg.get("content"), list):
+                        text_content = " ".join([c["text"] for c in msg["content"] if c["type"] == "text"])
+                        text_only_messages.append({"role": msg["role"], "content": text_content})
+                    else:
+                        text_only_messages.append(msg)
+
+                response = await self.client.chat_completion(
+                    model=fallback_model,
+                    messages=text_only_messages,
+                    max_tokens=300,
+                    temperature=0.7
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as fe:
+                logger.error(f"Fallback also failed: {fe}")
+
             if "503" in str(e):
                 return "I'm just waking up... give me a second to clear my eyes."
             return self._get_fallback_response()
 
     async def query(self, model, payload):
-        """Used for legacy model queries like emotion classification."""
+        """Generic model query using high-level methods when possible."""
         if not self.client:
             return {}
 
         try:
-            # Check if this is a zero-shot classification task
-            if "parameters" in payload and "candidate_labels" in payload["parameters"]:
-                return await self.client.zero_shot_classification(
+            # Handle sentiment/classification specifically
+            if model == "cardiffnlp/twitter-roberta-base-sentiment-latest":
+                return await self.client.text_classification(
                     text=payload["inputs"],
-                    model=model,
-                    candidate_labels=payload["parameters"]["candidate_labels"]
+                    model=model
                 )
 
-            # Fallback to direct httpx for other non-generated tasks if needed
+            # Direct httpx for other tasks
             import httpx
             api_url = f"https://api-inference.huggingface.co/models/{model}"
             headers = {"Authorization": f"Bearer {self.api_key}"}

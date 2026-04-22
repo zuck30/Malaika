@@ -66,17 +66,24 @@ class TTSEngine:
         file_name = f"{uuid.uuid4()}.mp3"
         output_path = os.path.join(self.output_dir, file_name)
 
-        try:
-            communicate = edge_tts.Communicate(
-                processed_text, 
-                profile["voice"], 
-                rate=profile["rate"], 
-                pitch=profile["pitch"]
-            )
-            await communicate.save(output_path)
-            return output_path
-        except Exception as e:
-            logger.error(f"TTS Error: {e}")
-            return None
+        # Try multiple times with different voices if one fails (403/Forbidden is common with edge-tts)
+        voices = ["en-US-AvaNeural", "en-US-EmmaNeural", "en-GB-LibbyNeural"]
+
+        for voice in voices:
+            try:
+                communicate = edge_tts.Communicate(
+                    processed_text,
+                    voice,
+                    rate=profile["rate"],
+                    pitch=profile["pitch"]
+                )
+                await communicate.save(output_path)
+                return output_path
+            except Exception as e:
+                logger.warning(f"TTS failed for voice {voice}: {e}")
+                continue
+
+        logger.error("All TTS voices failed")
+        return None
 
 tts_engine = TTSEngine()

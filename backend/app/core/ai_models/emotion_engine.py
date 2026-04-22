@@ -24,17 +24,20 @@ class EmotionEngine:
         return None
 
     async def analyze_text_emotion(self, text):
-        # Using a more reliable zero-shot classification model
-        model = "MoritzLaurer/DeBERTa-v3-base-mnli-xnli"
-        candidate_labels = ["happy", "sad", "angry", "surprised", "neutral", "loving", "curious", "bored", "anxious", "confused"]
-        payload = {
-            "inputs": text,
-            "parameters": {"candidate_labels": candidate_labels}
-        }
+        # Using a more reliable and smaller model for sentiment/emotion
+        model = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+        payload = {"inputs": text}
         try:
             result = await hf_client.query(model, payload)
-            if isinstance(result, dict) and "labels" in result and "scores" in result:
-                return result["labels"][0]
+            # Result is usually a list of lists of dicts: [[{'label': 'positive', 'score': 0.9}, ...]]
+            if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
+                top_sentiment = result[0][0]['label']
+                mapping = {
+                    "positive": "happy",
+                    "neutral": "neutral",
+                    "negative": "sad"
+                }
+                return mapping.get(top_sentiment, "neutral")
         except Exception as e:
             logger.error(f"Emotion analysis failed: {e}")
         return "neutral"
