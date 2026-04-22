@@ -12,7 +12,7 @@
 Malaika isn't just a companion, she's a presence. Inspired by the minimalist elegance of "Her" my favorite movie, and the high energy aesthetic of modern social interfaces.
 </p>
 
-![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react) ![FastAPI](https://img.shields.io/badge/FastAPI-0.104.0-009688?logo=fastapi) ![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-blue) ![Llama](https://img.shields.io/badge/Llama--3.2-HF%20Router-FFD21E) ![Moondream2](https://img.shields.io/badge/Moondream2-VLM-8A2BE2)
+![React](https://img.shields.io/badge/React-18.2.0-61DAFB?logo=react) ![FastAPI](https://img.shields.io/badge/FastAPI-0.104.0-009688?logo=fastapi) ![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-blue) ![Qwen2.5-VL](https://img.shields.io/badge/Qwen2.5--VL-Vision--Language-blueviolet)
 
 <br>
 
@@ -58,7 +58,7 @@ Malaika isn't just a companion, she's a presence. Inspired by the minimalist ele
     ```
 3.  Set your Hugging Face API key as an environment variable:
     ```bash
-    export HUGGINGFACE_API_KEY='your_huggingface_api_key'
+    export HF_TOKEN='your_huggingface_token'
     ```
 4.  Run the backend server:
     ```bash
@@ -91,7 +91,7 @@ Malaika isn't just a companion, she's a presence. Inspired by the minimalist ele
 ## Features
 
 - **Multi-modal Memory**: Integrated with ChromaDB for hybrid semantic/chronological retrieval of conversations.
-- **Proactive Visual Awareness**: Powered by Moondream2 for visual context awareness.
+- **Proactive Visual Awareness**: Powered by Qwen2.5-VL-7B-Instruct for high-fidelity visual and video context awareness.
 - **Emotional Depth**: Dual-layered emotion engine analyzing facial expressions and message sentiment.
 - **Natural Speech Synthesis**: Edge-TTS with natural prosody and conversational flow.
 

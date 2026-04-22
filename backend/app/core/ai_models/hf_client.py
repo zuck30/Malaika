@@ -1,7 +1,8 @@
-import httpx
+from huggingface_hub import AsyncInferenceClient
 import os
 import logging
 import random
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -10,42 +11,34 @@ logger = logging.getLogger(__name__)
 
 class HFClient:
     """
-    Async client for Hugging Face chat completion endpoints using the unified router.
-    Tries multiple models that are known to work with the free Inference API.
+    Async client for Hugging Face Inference API using Qwen2.5-VL-7B-Instruct.
+    Handles both text and vision-language tasks.
     """
     def __init__(self):
-        self.api_key = os.getenv("HUGGINGFACE_API_KEY")
-        self.router_url = "https://router.huggingface.co/v1/chat/completions"
-        self._client = None
+        # Support both HF_TOKEN and HUGGINGFACE_API_KEY for backward compatibility
+        self.api_key = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_API_KEY")
+        self.model_id = "Qwen/Qwen2.5-VL-7B-Instruct"
 
-        self.models = [
-            "meta-llama/Llama-3.2-1B-Instruct", # Ultra-fast (~0.5s)
-            "Qwen/Qwen2.5-1.5B-Instruct",      # Fast and very smart (~0.7s)
-            "meta-llama/Llama-3.2-3B-Instruct", # Standard quality (~1.2s)
-            "mistralai/Mistral-7B-v0.3",        # Robust fallback
-        ]
-        self.current_model_index = 0
-
-    @property
-    def client(self):
-        """Lazy-initialize HTTP client."""
-        if self._client is None:
-            self._client = httpx.AsyncClient(timeout=30.0)
-        return self._client
+        if self.api_key:
+            self.client = AsyncInferenceClient(
+                model=self.model_id,
+                token=self.api_key
+            )
+        else:
+            self.client = None
+            logger.error("HF_TOKEN or HUGGINGFACE_API_KEY is missing")
 
     async def close(self):
-        """Close the HTTP client gracefully."""
-        if self._client:
-            await self._client.aclose()
-            self._client = None
+        """No explicit close needed for AsyncInferenceClient usually, but kept for compatibility."""
+        pass
 
-    async def chat_completion(self, messages):
+    async def chat_completion(self, messages, max_tokens=500, temperature=0.7):
         """
-        Send a chat completion request, trying each model in sequence.
-        Returns a string response or a fallback message.
+        Send a chat completion request to Qwen2.5-VL.
+        Supports interleaved text and image content.
         """
-        if not self.api_key:
-            logger.error("HUGGINGFACE_API_KEY is missing")
+        if not self.client:
+            logger.error("InferenceClient not initialized due to missing API key")
             return self._get_fallback_response()
 
         # Enhanced system message with stronger character definition
@@ -64,67 +57,59 @@ Remember: You are Malaika. Just be yourself and speak naturally."""
         # Clean messages to remove any existing system prompts and ensure proper format
         cleaned_messages = []
         
-        # Add system message first
-        cleaned_messages.append({
-            "role": "system",
-            "content": system_prompt
-        })
+        # Add system message first if not already present as first message
+        if not messages or messages[0].get("role") != "system":
+            cleaned_messages.append({
+                "role": "system",
+                "content": system_prompt
+            })
         
         # Add the rest of the conversation, filtering out any old system messages
+        # unless they are the first one we just added (though we check role above)
         for msg in messages:
             if msg.get("role") != "system":
                 cleaned_messages.append(msg)
+            elif msg == messages[0] and not cleaned_messages:
+                # If the first message IS a system message, we can use it or override it
+                # Here we've already added our default, but let's allow custom if it came in first
+                cleaned_messages.append(msg)
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        try:
+            logger.info(f"Sending request to {self.model_id}")
+            response = await self.client.chat_completion(
+                messages=cleaned_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=0.9
+            )
 
-        # Try each model in order
-        for model in self.models:
-            payload = {
-                "model": model,
-                "messages": cleaned_messages,
-                "max_tokens": 300,
-                "temperature": 0.8,
-                "top_p": 0.9,
-                "frequency_penalty": 0.3, 
-                "presence_penalty": 0.3     
-            }
+            content = response.choices[0].message.content.strip()
 
-            try:
-                logger.info(f"Trying router endpoint with model: {model}")
-                response = await self.client.post(self.router_url, headers=headers, json=payload)
+            if content:
+                # Post-process the response to remove any unwanted prefixes
+                prefixes_to_remove = ["Malaika:", "Malaika: ", "Malaika :", "Malaika : ", "AI:", "Assistant:"]
+                for prefix in prefixes_to_remove:
+                    if content.startswith(prefix):
+                        content = content[len(prefix):].lstrip()
 
-                if response.status_code == 200:
-                    result = response.json()
-                    content = result['choices'][0]['message']['content'].strip()
-                    
-                    # Post-process the response to remove any unwanted prefixes
-                    if content:
-                        # Remove common prefixes if they somehow appear
-                        prefixes_to_remove = ["Malaika:", "Malaika: ", "Malaika :", "Malaika : ", "AI:", "Assistant:"]
-                        for prefix in prefixes_to_remove:
-                            if content.startswith(prefix):
-                                content = content[len(prefix):].lstrip()
-                        
-                        # Remove any stage directions in parentheses or asterisks
-                        if content and len(content) > 10:
-                            logger.info(f"Router endpoint succeeded with {model}")
-                            return content
-                        else:
-                            logger.warning(f"Router endpoint returned empty content for {model}")
-                    else:
-                        logger.warning(f"Router endpoint returned empty content for {model}")
-                else:
-                    logger.warning(f"Router endpoint returned {response.status_code} for {model}: {response.text[:200]}")
-            except Exception as e:
-                logger.warning(f"Router endpoint failed for {model}: {type(e).__name__}: {e}")
-                continue
+                return content
+            else:
+                logger.warning("Received empty content from model")
+                return self._get_fallback_response()
 
-        # All attempts failed
-        logger.error("All Hugging Face models failed")
-        return self._get_fallback_response()
+        except Exception as e:
+            err_msg = str(e)
+            if "503" in err_msg:
+                logger.warning("Model is loading (503). Malaika is 'waking up'...")
+                # Optional: await asyncio.sleep(2) and retry once?
+                # For now, return a friendly "loading" message or fallback
+                return "I'm just waking up... give me a second to clear my eyes."
+            elif "413" in err_msg:
+                logger.error("Payload too large (413). Too many frames or resolution too high.")
+                return "That's a lot to take in at once! Could you show me something a bit simpler?"
+
+            logger.error(f"Inference failed: {e}")
+            return self._get_fallback_response()
 
     def _get_fallback_response(self):
         """Return a random fallback response when all models fail."""
@@ -137,6 +122,24 @@ Remember: You are Malaika. Just be yourself and speak naturally."""
         ]
         return random.choice(fallbacks)
 
+    async def query(self, model, payload):
+        """Legacy support for direct model queries (used by emotion engine)"""
+        if not self.api_key:
+            return {}
+
+        async with AsyncInferenceClient(token=self.api_key) as client:
+            try:
+                # For direct queries we don't use chat_completion
+                # This is used for things like facebook/bart-large-mnli
+                import httpx
+                headers = {"Authorization": f"Bearer {self.api_key}"}
+                api_url = f"https://api-inference.huggingface.co/models/{model}"
+                async with httpx.AsyncClient() as http_client:
+                    response = await http_client.post(api_url, headers=headers, json=payload, timeout=10.0)
+                    return response.json()
+            except Exception as e:
+                logger.error(f"Query failed for {model}: {e}")
+                return {}
 
 # Create singleton instance
 hf_client = HFClient()
