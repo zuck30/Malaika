@@ -170,7 +170,11 @@ async def chat_text(request: ChatRequest):
         "tts_url": f"/api/chat/tts?text={quote(clean_text)}"
     }
 
-from app.core.ai_models.vision_utils import validate_and_process_image
+from app.core.ai_models.vision_utils import (
+    validate_and_process_image,
+    sample_frames_from_video,
+    encode_image_to_base64
+)
 
 @router.post("/vision-chat")
 async def vision_chat(
@@ -178,7 +182,7 @@ async def vision_chat(
     file: UploadFile = File(None)
 ):
     """
-    Enhanced chat that includes visual context from local vision (Moondream).
+    Enhanced chat that includes visual context from Qwen2.5-VL via hf_client.
     If no image is provided, it responds playfully while maintaining character.
     """
     logger.info("=" * 50)
@@ -186,36 +190,39 @@ async def vision_chat(
     logger.info(f"Message: '{message}'")
     logger.info(f"File present: {file is not None}")
     
-    description = None
-    visual_context = None
+    visual_content = []
     
     # Only process image if one was provided AND has content
     if file and file.filename:
         try:
+            content_type = file.content_type
             raw_bytes = await file.read()
-            logger.info(f" Read {len(raw_bytes)} bytes from file")
+            logger.info(f" Read {len(raw_bytes)} bytes from file, type: {content_type}")
             
             if raw_bytes and len(raw_bytes) > 500:
                 try:
-                    # Validate and process image
-                    image_bytes = validate_and_process_image(raw_bytes)
-                    
-                    # Use Local Vision
-                    description = await local_vision_client.analyze_image_async(image_bytes)
-                    visual_context = description
-                    logger.info(f" Local vision success: {description[:100]}...")
+                    if content_type and content_type.startswith("video/"):
+                        frames = sample_frames_from_video(raw_bytes, num_frames=4)
+                        for frame in frames:
+                            visual_content.append({
+                                "type": "image_url",
+                                "image_url": {"url": encode_image_to_base64(frame)}
+                            })
+                    else:
+                        # Validate and process image
+                        image_bytes = validate_and_process_image(raw_bytes)
+                        visual_content.append({
+                            "type": "image_url",
+                            "image_url": {"url": encode_image_to_base64(image_bytes)}
+                        })
                 except Exception as e:
                     logger.error(f" Vision processing error: {e}")
-                    visual_context = None
             else:
                 logger.warning(f" Image too small or empty")
-                visual_context = None
         except Exception as e:
             logger.error(f" Error reading file: {e}")
-            visual_context = None
     else:
         logger.info(" No image file in request")
-        visual_context = "Camera off"  # Special flag for no camera
     
     # Retrieve context from memory
     relevant_memories = memory_manager.query_memory(message, n_results=5)
@@ -224,26 +231,33 @@ async def vision_chat(
     context_summary = "\n".join(relevant_memories) if relevant_memories else ""
     history_summary = "\n".join(recent_history) if recent_history else ""
 
-    # Create Malaika's system prompt with visual context
+    # Create Malaika's system prompt (without visual_context as string for hf_client.chat_completion)
+    # We still use the system prompt for personality, but we'll send the images in the user content
     system_content = create_Malaika_system_prompt(
         context_summary=context_summary,
         history_summary=history_summary,
-        visual_context=visual_context,
+        visual_context="Camera off" if not visual_content else "I can see you now",
         is_vision_only=(message == "[VISION_ONLY]")
     )
 
     # Prepare user message
     if message == "[VISION_ONLY]":
-        if visual_context and visual_context != "Camera off":
-            user_content = "I'm here! What do you see when you look at me?"
+        if visual_content:
+            text_content = "What do you notice? Just a quick observation based on what you see."
         else:
-            user_content = "I'm here but my camera's off. How do you feel about that?"
+            text_content = "I'm here but my camera's off. How do you feel about that?"
     else:
-        user_content = message
+        text_content = message
+
+    # Construct interleaved message
+    user_message_content = []
+    for item in visual_content:
+        user_message_content.append(item)
+    user_message_content.append({"type": "text", "text": text_content})
 
     messages = [
         {"role": "system", "content": system_content},
-        {"role": "user", "content": user_content}
+        {"role": "user", "content": user_message_content}
     ]
 
     # Generate response
@@ -278,7 +292,7 @@ async def vision_chat(
     return {
         "response": clean_text,
         "emotion": emotion,
-        "visual_description": description if description else "Camera off",
+        "visual_description": "I can see you" if visual_content else "Camera off",
         "tts_url": f"/api/chat/tts?text={quote(clean_text)}"
     }
 

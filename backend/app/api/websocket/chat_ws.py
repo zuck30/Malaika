@@ -6,13 +6,14 @@ import re
 from app.core.ai_models.hf_client import hf_client
 from app.core.ai_models.emotion_engine import emotion_engine
 from app.core.memory.vector_store import memory_manager
-from app.core.ai_models.local_vision import local_vision_client
+from app.core.ai_models.vision_utils import validate_and_process_image, encode_image_to_base64
 from app.core.actions.executor import action_executor
 
 class ChatWebSocketHandler:
     def __init__(self):
         self.active_connections = []
         self.current_vision_context = "The user is standing in front of the camera."
+        self.current_vision_image_base64 = None
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -31,11 +32,25 @@ class ChatWebSocketHandler:
                 
                 # HANDLE VISION UPDATES VIA WS
                 if message.get("type") == "vision_frame":
-                    image_base64 = message.get("image")
-                    if image_base64:
-                        img_bytes = base64.b64decode(image_base64)
-                        self.current_vision_context = await local_vision_client.analyze_image_async(img_bytes)
-                        # Optionally notify frontend that vision was updated
+                    image_base64_raw = message.get("image")
+                    if image_base64_raw:
+                        try:
+                            img_bytes = base64.b64decode(image_base64_raw)
+                            processed_bytes = validate_and_process_image(img_bytes)
+                            self.current_vision_image_base64 = encode_image_to_base64(processed_bytes)
+
+                            # Update context via Qwen
+                            v_messages = [{
+                                "role": "user",
+                                "content": [
+                                    {"type": "image_url", "image_url": {"url": self.current_vision_image_base64}},
+                                    {"type": "text", "text": "Describe the user's current expression or environment in 5-8 words."}
+                                ]
+                            }]
+                            self.current_vision_context = await hf_client.chat_completion(v_messages, max_tokens=50)
+                        except Exception as e:
+                            logger.error(f"WS Vision update failed: {e}")
+
                         continue 
 
                 if message.get("type") == "chat":
@@ -71,9 +86,17 @@ class ChatWebSocketHandler:
                         if history_summary:
                             system_content += f"\n\n{history_summary}"
 
+                        user_content = []
+                        if self.current_vision_image_base64:
+                            user_content.append({
+                                "type": "image_url",
+                                "image_url": {"url": self.current_vision_image_base64}
+                            })
+                        user_content.append({"type": "text", "text": user_text})
+
                         messages = [
                             {"role": "system", "content": system_content},
-                            {"role": "user", "content": user_text}
+                            {"role": "user", "content": user_content}
                         ]
 
                         response_text = await hf_client.chat_completion(messages)

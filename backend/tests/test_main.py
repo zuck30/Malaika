@@ -6,7 +6,7 @@ client = TestClient(app)
 def test_read_main():
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Malaika AI Companion API is running"}
+    assert response.json() == {"message": "Malaika-AI Companion API is running"}
 
 def test_chat_endpoint_exists():
     # Just checking if the route exists, not calling HF API

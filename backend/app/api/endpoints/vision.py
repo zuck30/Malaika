@@ -1,7 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, Form
 from app.core.ai_models.hf_client import hf_client
-from app.core.ai_models.vision_utils import validate_and_process_image
-from app.core.ai_models.local_vision import local_vision_client
+from app.core.ai_models.vision_utils import (
+    validate_and_process_image,
+    sample_frames_from_video,
+    encode_image_to_base64
+)
 from fastapi.responses import JSONResponse
 import logging
 
@@ -9,20 +12,54 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/analyze")
-async def analyze_frame(image: UploadFile = File(...)):
-    """Legacy endpoint - just analyze the image"""
+async def analyze_media(file: UploadFile = File(...)):
+    """Analyze image or video using Qwen2.5-VL"""
     try:
-        raw_data = await image.read()
-        logger.info(f"Received image for analysis: {len(raw_data)} bytes")
+        content_type = file.content_type
+        raw_data = await file.read()
+        logger.info(f"Received media for analysis: {len(raw_data)} bytes, type: {content_type}")
+
+        content = []
         
-        image_data = validate_and_process_image(raw_data)
-        description = await local_vision_client.analyze_image_async(image_data)
+        if content_type and content_type.startswith("video/"):
+            # Sample frames from video
+            frames = sample_frames_from_video(raw_data, num_frames=6)
+            if not frames:
+                return JSONResponse(content={"analysis": "I couldn't read that video file."}, status_code=400)
+
+            for frame_bytes in frames:
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": encode_image_to_base64(frame_bytes)}
+                })
+            content.append({
+                "type": "text",
+                "text": "What is happening in this video? Describe it briefly."
+            })
+        else:
+            # Handle as image
+            try:
+                image_data = validate_and_process_image(raw_data)
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": encode_image_to_base64(image_data)}
+                })
+                content.append({
+                    "type": "text",
+                    "text": "Describe what you see in one short, natural sentence."
+                })
+            except Exception as e:
+                logger.error(f"Image processing failed: {e}")
+                return JSONResponse(content={"analysis": "I can't seem to open that image."}, status_code=400)
+
+        messages = [{"role": "user", "content": content}]
+        description = await hf_client.chat_completion(messages, max_tokens=150)
         
         return JSONResponse(content={
             "analysis": description
         })
     except Exception as e:
-        logger.error(f"Vision analysis failed: {e}")
+        logger.error(f"Vision analysis failed: {e}", exc_info=True)
         return JSONResponse(content={
             "analysis": "I'm having trouble seeing right now."
         })
@@ -32,35 +69,35 @@ async def vision_chat(
     message: str = Form(...),
     file: UploadFile = File(...)
 ):
-    """New endpoint that handles both vision and chat"""
+    """
+    Handles both vision and chat using Qwen2.5-VL.
+    Matches the structure of the existing frontend calls.
+    """
     try:
-        # Read and analyze the image
+        content_type = file.content_type
         raw_data = await file.read()
-        logger.info(f"Vision-chat received: {len(raw_data)} bytes, message: {message}")
+        logger.info(f"Vision-chat received: {len(raw_data)} bytes, type: {content_type}, message: {message}")
         
-        image_data = validate_and_process_image(raw_data)
-        description = await local_vision_client.analyze_image_async(image_data)
+        user_content = []
         
-        # If this is just a vision update (no user message), generate a spontaneous response
-        if message == "[VISION_ONLY]":
-            system_message = f"""You are Malaika, a warm and playful AI companion. 
-You just saw this: {description}
-Respond naturally and briefly to what you see, as if you're making an observation. 
-Keep it short and playful, like a friend would."""
-            
-            user_content = "What do you notice?"
+        # Process visual input
+        if content_type and content_type.startswith("video/"):
+            frames = sample_frames_from_video(raw_data, num_frames=4)
+            for frame in frames:
+                user_content.append({"type": "image_url", "image_url": {"url": encode_image_to_base64(frame)}})
         else:
-            # User sent a message with the image
-            system_message = f"""You are Malaika, a warm and playful AI companion. 
-You can see that: {description}
-Respond naturally to the user's message, acknowledging what you see."""
+            image_data = validate_and_process_image(raw_data)
+            user_content.append({"type": "image_url", "image_url": {"url": encode_image_to_base64(image_data)}})
+
+        # Process text input
+        if message == "[VISION_ONLY]":
+            prompt = "What do you notice? Just a quick observation."
+        else:
+            prompt = message
             
-            user_content = message
+        user_content.append({"type": "text", "text": prompt})
         
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_content}
-        ]
+        messages = [{"role": "user", "content": user_content}]
         
         response_text = await hf_client.chat_completion(messages)
         
@@ -69,7 +106,7 @@ Respond naturally to the user's message, acknowledging what you see."""
         emotion = await emotion_engine.analyze_text_emotion(response_text)
         
         return JSONResponse(content={
-            "visual_description": description,
+            "visual_description": "I can see what's happening.",
             "response": response_text,
             "emotion": emotion
         })
