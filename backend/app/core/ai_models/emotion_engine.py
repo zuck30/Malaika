@@ -24,7 +24,8 @@ class EmotionEngine:
         return None
 
     async def analyze_text_emotion(self, text):
-        model = "facebook/bart-large-mnli"
+        # Using a more reliable zero-shot classification model
+        model = "MoritzLaurer/DeBERTa-v3-base-mnli-xnli"
         candidate_labels = ["happy", "sad", "angry", "surprised", "neutral", "loving", "curious", "bored", "anxious", "confused"]
         payload = {
             "inputs": text,
@@ -32,10 +33,10 @@ class EmotionEngine:
         }
         try:
             result = await hf_client.query(model, payload)
-            if "labels" in result and "scores" in result:
+            if isinstance(result, dict) and "labels" in result and "scores" in result:
                 return result["labels"][0]
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Emotion analysis failed: {e}")
         return "neutral"
 
 emotion_engine = EmotionEngine()

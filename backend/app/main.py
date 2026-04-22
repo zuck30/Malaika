@@ -47,7 +47,7 @@ app.include_router(emotion.router, prefix="/api/emotion", tags=["emotion"])
 
 @app.get("/")
 async def root():
-    return {"message": "Malaika-AI Companion API is running"}
+    return {"message": "Malaika AI Companion API is running"}
 
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):

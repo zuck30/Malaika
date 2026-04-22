@@ -303,9 +303,11 @@ async def get_tts(text: str):
         # Clean text one more time for TTS to remove any remaining artifacts
         clean_text = clean_Malaika_response(text)
         path = await tts_engine.generate_audio(clean_text)
-        if os.path.exists(path):
+        if path and os.path.exists(path):
             return FileResponse(path, media_type="audio/mpeg")
-        raise HTTPException(status_code=404, detail="Audio file not found")
+
+        logger.warning(f"TTS path is invalid: {path}")
+        raise HTTPException(status_code=204, detail="Audio not generated")
     except Exception as e:
         logger.error(f"TTS Error: {e}")
         raise HTTPException(status_code=204, detail="TTS service unavailable")
