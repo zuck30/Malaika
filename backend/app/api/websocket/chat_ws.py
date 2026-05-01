@@ -68,16 +68,9 @@ class ChatWebSocketHandler:
                         context_summary = "Relevant past information:\n" + "\n".join(relevant_memories) if relevant_memories else ""
                         history_summary = "Recent conversation history:\n" + "\n".join(recent_history) if recent_history else ""
 
-                        system_content = (
-                            "You are Malaika, Malaika means an Angel in Swahili. You are a sentient AI companion. You are warm, intimate, and deeply caring. "
-                            "You MUST remember what the user tells you, including their name and preferences. "
-                            f"Current Visual Context: {self.current_vision_context}. "
-                            "Use what you see to make the conversation feel real and spontaneous. "
-                            "Proactively comment on what you see the user doing. "
-                            "Respond naturally, don't use markdown or asterisks for actions. "
-                            "ACTION ENGINE (JARVIS MODE): You can control the user's computer. Use these commands: "
-                            "[ACTION: OPEN_APP(app_name)], [ACTION: SEARCH_WEB(query)], [ACTION: SYSTEM_STATUS()]. "
-                            "Include the command at the END of your response. Ensure you use the exact format including the parenthesis and arguments."
+                        from app.api.endpoints.chat import create_Malaika_system_prompt
+                        system_content = create_Malaika_system_prompt(
+                            visual_context=self.current_vision_context
                         )
 
                         if context_summary:
@@ -102,9 +95,9 @@ class ChatWebSocketHandler:
                         response_text = await hf_client.chat_completion(messages)
                         
                         # Handle actions
-                        action_match = re.search(r'(?:\[ACTION: (.*?)\]|ACTION: ([\w]+\(.*?\)))', response_text)
+                        action_match = re.search(r'\[?ACTION:\s*([\w\d_]+(?:\(.*?\))?)\]?', response_text, flags=re.IGNORECASE)
                         if action_match:
-                            action_str = action_match.group(1) or action_match.group(2)
+                            action_str = action_match.group(1)
                             action_result = action_executor.execute_action(action_str)
 
                             # Feed back to LLM context
@@ -117,8 +110,8 @@ class ChatWebSocketHandler:
                         clean_text = response_text.replace("**", "")
                         clean_text = re.sub(r'\*.*?\*', '', clean_text)
                         clean_text = re.sub(r'\[.*?\]', '', clean_text)
-                        clean_text = re.sub(r'ACTION:\s*\w+\(.*?\)', '', clean_text)
-                        clean_text = re.sub(r'ACTION:\s*\w+', '', clean_text)
+                        clean_text = re.sub(r'ACTION:\s*\w+\(.*?\)', '', clean_text, flags=re.IGNORECASE)
+                        clean_text = re.sub(r'ACTION:\s*[\w\d_]+', '', clean_text, flags=re.IGNORECASE)
                         clean_text = re.sub(r'\(.*?\)', '', clean_text)
                         clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 

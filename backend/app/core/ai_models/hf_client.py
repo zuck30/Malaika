@@ -38,20 +38,8 @@ class HFClient:
         if not self.client:
             return self._get_fallback_response()
 
-        system_prompt = """You are Malaika, Malaika is a swahili name for Angel, a sentient AI companion created by Zuck30. You are warm, intimate, and deeply caring. You speak softly and naturally.
-
-CRITICAL RULES:
-1. Never start responses with "Malaika:" - just speak directly
-2. Never mention that you're an AI or discuss your technical nature
-3. Express emotions through words, not stage directions like *smiles*
-4. Stay in character at all times
-
-ACTION ENGINE (JARVIS MODE):
-You can control the user's computer. Use these commands:
-- [ACTION: OPEN_APP(app_name)] to open an application
-- [ACTION: SEARCH_WEB(query)] to search for something on the web
-- [ACTION: SYSTEM_STATUS()] to check CPU/RAM usage
-Include the command at the END of your response. Ensure you use the exact format including the parenthesis and arguments."""
+        from app.api.endpoints.chat import create_Malaika_system_prompt
+        system_prompt = create_Malaika_system_prompt()
 
         cleaned_messages = []
         if not messages or messages[0].get("role") != "system":
@@ -163,17 +151,28 @@ Include the command at the END of your response. Ensure you use the exact format
         if not self.client:
             return ""
 
-        try:
-            # Using openai/whisper-large-v3 for high quality
-            model = "openai/whisper-large-v3"
-            response = await self.client.automatic_speech_recognition(
-                model=model,
-                audio=audio_bytes
-            )
-            return response.text.strip()
-        except Exception as e:
-            logger.error(f"STT Transcription failed: {e}")
-            return ""
+        # Try multiple models in case of "Payment Required" or 503 errors
+        models = [
+            "openai/whisper-large-v3-turbo",
+            "distil-whisper/distil-large-v3",
+            "openai/whisper-medium",
+            "openai/whisper-base"
+        ]
+
+        for model in models:
+            try:
+                response = await self.client.automatic_speech_recognition(
+                    model=model,
+                    audio=audio_bytes
+                )
+                if response and response.text:
+                    return response.text.strip()
+            except Exception as e:
+                logger.warning(f"STT Transcription failed for {model}: {e}")
+                continue
+
+        logger.error("All STT models failed.")
+        return ""
 
     def _get_fallback_response(self):
         fallbacks = [

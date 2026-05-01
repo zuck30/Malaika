@@ -41,10 +41,12 @@ class ActionExecutor:
             # Use regex for more robust parsing
             match = re.search(r'(\w+)\((.*)\)', action_string)
             if not match:
-                cmd = action_string.strip()
-                args = ""
+                # Handle cases like "OPEN_APP spotify" or just "SYSTEM_STATUS"
+                parts = action_string.strip().split(None, 1)
+                cmd = parts[0].upper()
+                args = parts[1] if len(parts) > 1 else ""
             else:
-                cmd = match.group(1)
+                cmd = match.group(1).upper()
                 args = match.group(2).strip()
 
             if cmd == "OPEN_APP":
@@ -95,12 +97,17 @@ class ActionExecutor:
 
         return app_name_lower
 
+    def _sanitize_applescript_string(self, s: str):
+        """Escapes quotes in a string for use in AppleScript."""
+        return s.replace('"', '\\"')
+
     def open_application(self, app_name: str):
         """Opens a local application or a mapped URL."""
         if not app_name:
             return "Error: No application name provided."
 
         target = self._fuzzy_find_app(app_name)
+        target = self._sanitize_applescript_string(target)
 
         # If target is a URL, open in browser
         if target.startswith("http"):
