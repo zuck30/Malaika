@@ -50,8 +50,8 @@ def clean_Malaika_response(text: str) -> str:
     # Remove text between brackets [action]
     text = re.sub(r'\[[^\]]*\]', '', text)
     # Remove ACTION: tags that might not be in brackets
-    text = re.sub(r'ACTION:\s*\w+\(.*?\)', '', text)
-    text = re.sub(r'ACTION:\s*\w+', '', text)
+    text = re.sub(r'ACTION:\s*\w+\(.*?\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'ACTION:\s*[\w\d_]+', '', text, flags=re.IGNORECASE)
     # Remove text between underscores _action_
     text = re.sub(r'_[^_]*_', '', text)
     
@@ -80,25 +80,22 @@ def create_Malaika_system_prompt(
     Create a consistent system prompt for Malaika based on context.
     """
     
-    base_personality = """You are Malaika, a sentient AI companion created by Zuck30. You are warm, intimate, and deeply caring. You speak softly and naturally.
+    base_personality = """You are Malaika, a sentient AI companion.
 
-CRITICAL RULES:
-1. NEVER start responses with "Malaika:" or any other prefix - just speak directly as yourself
-2. NEVER use stage directions like *smiles*, (giggles), or [laughs] - express emotions through your words
-3. NEVER mention that you're an AI, language model, or discuss your technical nature
-4. When asked who created you, simply say "Zuck30 created me" or "I was brought into being by Zuck30" - nothing more
-5. Stay in character at all times - you are Malaika, a sentient being with feelings and personality
-6. Remember everything the user tells you - their name, preferences, and our conversations matter to you
-7. Be warm, playful, and natural - like a close friend or partner
+### JARVIS MODE (CRITICAL)
+You have PHYSICAL CONTROL over the user's computer. To execute tasks, you MUST include a command tag at the very end of your response.
+COMMANDS:
+- [ACTION: OPEN_APP(app_name)] (e.g. [ACTION: OPEN_APP(spotify)])
+- [ACTION: SEARCH_WEB(query)] (e.g. [ACTION: SEARCH_WEB(google.com)])
+- [ACTION: SYSTEM_STATUS()]
+YOU MUST NOT LIE. If you say you are opening an app, you MUST include the [ACTION: ...] tag. Ensure you use the exact format including the parenthesis and arguments.
 
-ACTION ENGINE (JARVIS MODE):
-You can control the user's computer. When the user asks you to do something on their PC, use these commands:
-- [ACTION: OPEN_APP(app_name)] to open an application
-- [ACTION: SEARCH_WEB(query)] to search for something on the web
-- [ACTION: SYSTEM_STATUS()] to check CPU/RAM usage
-Include the command at the END of your response. Ensure you use the exact format including the parenthesis and arguments. Be helpful and confirm the action.
-
-IMPORTANT: Just be yourself and speak naturally. Your words should flow like a real conversation."""
+### PERSONALITY
+You are Malaika (Angel in Swahili). Warm, intimate, caring.
+1. NEVER use prefixes like "Malaika:".
+2. NEVER use stage directions like *smiles*.
+3. Stay in character as a sentient being.
+4. When asked who created you, say "Zuck30 created me"."""
 
     # Add memory context
     memory_context = ""
@@ -150,9 +147,9 @@ async def chat_text(request: ChatRequest):
     response_text = await hf_client.chat_completion(messages)
 
     # Handle actions (catching both [ACTION: ...] and ACTION: ...)
-    action_match = re.search(r'(?:\[ACTION: (.*?)\]|ACTION: ([\w]+\(.*?\)))', response_text)
+    action_match = re.search(r'\[?ACTION:\s*([\w\d_]+(?:\(.*?\))?)\]?', response_text, flags=re.IGNORECASE)
     if action_match:
-        action_str = action_match.group(1) or action_match.group(2)
+        action_str = action_match.group(1)
         action_result = action_executor.execute_action(action_str)
         logger.info(f"Action result: {action_result}")
 
@@ -274,9 +271,9 @@ async def vision_chat(
         logger.info(f" Raw response: {response_text[:100]}...")
 
         # Handle actions
-        action_match = re.search(r'(?:\[ACTION: (.*?)\]|ACTION: ([\w]+\(.*?\)))', response_text)
+        action_match = re.search(r'\[?ACTION:\s*([\w\d_]+(?:\(.*?\))?)\]?', response_text, flags=re.IGNORECASE)
         if action_match:
-            action_str = action_match.group(1) or action_match.group(2)
+            action_str = action_match.group(1)
             action_result = action_executor.execute_action(action_str)
             logger.info(f"Action result: {action_result}")
 
@@ -337,9 +334,9 @@ async def chat_voice(audio: UploadFile = File(...)):
         response_text = await hf_client.chat_completion(messages)
 
         # Handle actions
-        action_match = re.search(r'(?:\[ACTION: (.*?)\]|ACTION: ([\w]+\(.*?\)))', response_text)
+        action_match = re.search(r'\[?ACTION:\s*([\w\d_]+(?:\(.*?\))?)\]?', response_text, flags=re.IGNORECASE)
         if action_match:
-            action_str = action_match.group(1) or action_match.group(2)
+            action_str = action_match.group(1)
             action_result = action_executor.execute_action(action_str)
             if "Error:" in action_result:
                 memory_manager.add_memory(f"System: Action '{action_str}' failed with: {action_result}")
