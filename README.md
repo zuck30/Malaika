@@ -99,7 +99,24 @@ Malaika isn't just a companion, she's a presence. Inspired by the minimalist ele
 
 1.  Open your web browser and navigate to `http://localhost:3000`.
 2.  Interact with Malaika through voice or text.
-3.  Experience a living, breathing AI companion.
+3.  **Clap your hands** to trigger a Jarvis-style greeting and start voice conversation!
+4.  Experience a living, breathing AI companion.
+
+## macOS Permissions & Setup
+
+To allow Malaika to control your MacBook Pro (M3) or other macOS laptops, you must grant the following permissions:
+
+1.  **Accessibility**: Required for controlling system volume, brightness, and window management via `osascript` and `Quartz`.
+    - Go to `System Settings > Privacy & Security > Accessibility`.
+    - Add and enable your Terminal (e.g., iTerm2 or Terminal.app) and/or your IDE (e.g., VS Code).
+2.  **Screen Recording**: Required for the Vision module to capture frames for analysis.
+    - Go to `System Settings > Privacy & Security > Screen Recording`.
+    - Enable for your terminal/browser.
+3.  **Microphone**: Required for voice interaction and clap detection.
+    - Go to `System Settings > Privacy & Security > Microphone`.
+    - Enable for your browser (Chrome/Safari) and Terminal.
+4.  **Automation**: Ensure the terminal is allowed to control "System Events".
+    - Usually prompted on first run; can be managed in `System Settings > Privacy & Security > Automation`.
 
 ## License
 

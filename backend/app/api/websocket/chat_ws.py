@@ -107,6 +107,12 @@ class ChatWebSocketHandler:
                             action_str = action_match.group(1)
                             action_result = action_executor.execute_action(action_str)
 
+                            # Feed back to LLM context
+                            if "Error:" in action_result:
+                                memory_manager.add_memory(f"System: Action '{action_str}' failed with: {action_result}")
+                            else:
+                                memory_manager.add_memory(f"System: Action '{action_str}' succeeded: {action_result}")
+
                         # Clean up response text for display - Remove markdown, actions and parenthetical notes
                         clean_text = response_text.replace("**", "")
                         clean_text = re.sub(r'\*.*?\*', '', clean_text)

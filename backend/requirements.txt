@@ -29,7 +29,11 @@ pillow==10.2.0
 # Audio
 edge-tts>=7.2.8
 
-# Utilities & Dependency Resolution
+# Hardware Control & Utilities
+pyobjc-core; sys_platform == 'darwin'
+pyobjc-framework-Quartz; sys_platform == 'darwin'
+pyobjc-framework-CoreGraphics; sys_platform == 'darwin'
+pyautogui==0.9.54
 tenacity>=8.0.0
 psutil==7.2.2
 numpy==1.26.4

@@ -1,4 +1,9 @@
 from dotenv import load_dotenv
+import os
+
+# Prevent deadlocks in forked processes (common with HuggingFace Tokenizers)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 load_dotenv(override=True)
 
 from contextlib import asynccontextmanager
@@ -22,7 +27,8 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     logger.info("Shutting down Hugging Face client")
-    await hf_client.close()
+    if hasattr(hf_client, 'close'):
+        await hf_client.close()
 
 app = FastAPI(
     title="Malaika-AI Companion API",

@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useVoiceRecorder } from './hooks/useVoiceRecorder';
 import { useWakeWord } from './hooks/useWakeWord';
+import { useClapDetection } from './hooks/useClapDetection';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const WS_BASE = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
@@ -85,6 +86,19 @@ const App: React.FC = () => {
     if (!isListening && !isSpeaking) {
       dispatch(setListening(true));
       startRecording();
+    }
+  }, !isListening && !isSpeaking);
+
+  // Clap detection (Jarvis Mode)
+  useClapDetection(() => {
+    if (!isListening && !isSpeaking) {
+      const greeting = "At your service. How can I help you today?";
+      dispatch(addMessage({ role: 'Malaika', content: greeting }));
+      handleSpeak(greeting).then(() => {
+        // Automatically start listening after greeting
+        dispatch(setListening(true));
+        startRecording();
+      });
     }
   }, !isListening && !isSpeaking);
 
