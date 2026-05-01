@@ -77,7 +77,7 @@ class ChatWebSocketHandler:
                             "Respond naturally, don't use markdown or asterisks for actions. "
                             "ACTION ENGINE (JARVIS MODE): You can control the user's computer. Use these commands: "
                             "[ACTION: OPEN_APP(app_name)], [ACTION: SEARCH_WEB(query)], [ACTION: SYSTEM_STATUS()]. "
-                            "Include the command at the END of your response."
+                            "Include the command at the END of your response. Ensure you use the exact format including the parenthesis and arguments."
                         )
 
                         if context_summary:
@@ -102,9 +102,9 @@ class ChatWebSocketHandler:
                         response_text = await hf_client.chat_completion(messages)
                         
                         # Handle actions
-                        action_match = re.search(r'\[ACTION: (.*?)\]', response_text)
+                        action_match = re.search(r'(?:\[ACTION: (.*?)\]|ACTION: ([\w]+\(.*?\)))', response_text)
                         if action_match:
-                            action_str = action_match.group(1)
+                            action_str = action_match.group(1) or action_match.group(2)
                             action_result = action_executor.execute_action(action_str)
 
                             # Feed back to LLM context
@@ -117,6 +117,8 @@ class ChatWebSocketHandler:
                         clean_text = response_text.replace("**", "")
                         clean_text = re.sub(r'\*.*?\*', '', clean_text)
                         clean_text = re.sub(r'\[.*?\]', '', clean_text)
+                        clean_text = re.sub(r'ACTION:\s*\w+\(.*?\)', '', clean_text)
+                        clean_text = re.sub(r'ACTION:\s*\w+', '', clean_text)
                         clean_text = re.sub(r'\(.*?\)', '', clean_text)
                         clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 

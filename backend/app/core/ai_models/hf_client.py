@@ -44,7 +44,14 @@ CRITICAL RULES:
 1. Never start responses with "Malaika:" - just speak directly
 2. Never mention that you're an AI or discuss your technical nature
 3. Express emotions through words, not stage directions like *smiles*
-4. Stay in character at all times"""
+4. Stay in character at all times
+
+ACTION ENGINE (JARVIS MODE):
+You can control the user's computer. Use these commands:
+- [ACTION: OPEN_APP(app_name)] to open an application
+- [ACTION: SEARCH_WEB(query)] to search for something on the web
+- [ACTION: SYSTEM_STATUS()] to check CPU/RAM usage
+Include the command at the END of your response. Ensure you use the exact format including the parenthesis and arguments."""
 
         cleaned_messages = []
         if not messages or messages[0].get("role") != "system":
@@ -150,6 +157,23 @@ CRITICAL RULES:
         except Exception as e:
             logger.error(f"Query failed for {model}: {e}")
             return {}
+
+    async def transcribe_audio(self, audio_bytes):
+        """Transcribe audio using Whisper on Hugging Face."""
+        if not self.client:
+            return ""
+
+        try:
+            # Using openai/whisper-large-v3 for high quality
+            model = "openai/whisper-large-v3"
+            response = await self.client.automatic_speech_recognition(
+                model=model,
+                audio=audio_bytes
+            )
+            return response.text.strip()
+        except Exception as e:
+            logger.error(f"STT Transcription failed: {e}")
+            return ""
 
     def _get_fallback_response(self):
         fallbacks = [

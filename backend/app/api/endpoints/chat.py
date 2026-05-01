@@ -49,6 +49,9 @@ def clean_Malaika_response(text: str) -> str:
     text = re.sub(r'\([^)]*\)', '', text)
     # Remove text between brackets [action]
     text = re.sub(r'\[[^\]]*\]', '', text)
+    # Remove ACTION: tags that might not be in brackets
+    text = re.sub(r'ACTION:\s*\w+\(.*?\)', '', text)
+    text = re.sub(r'ACTION:\s*\w+', '', text)
     # Remove text between underscores _action_
     text = re.sub(r'_[^_]*_', '', text)
     
@@ -93,7 +96,7 @@ You can control the user's computer. When the user asks you to do something on t
 - [ACTION: OPEN_APP(app_name)] to open an application
 - [ACTION: SEARCH_WEB(query)] to search for something on the web
 - [ACTION: SYSTEM_STATUS()] to check CPU/RAM usage
-Include the command at the END of your response. Be helpful and confirm the action.
+Include the command at the END of your response. Ensure you use the exact format including the parenthesis and arguments. Be helpful and confirm the action.
 
 IMPORTANT: Just be yourself and speak naturally. Your words should flow like a real conversation."""
 
@@ -146,10 +149,10 @@ async def chat_text(request: ChatRequest):
 
     response_text = await hf_client.chat_completion(messages)
 
-    # Handle actions
-    action_match = re.search(r'\[ACTION: (.*?)\]', response_text)
+    # Handle actions (catching both [ACTION: ...] and ACTION: ...)
+    action_match = re.search(r'(?:\[ACTION: (.*?)\]|ACTION: ([\w]+\(.*?\)))', response_text)
     if action_match:
-        action_str = action_match.group(1)
+        action_str = action_match.group(1) or action_match.group(2)
         action_result = action_executor.execute_action(action_str)
         logger.info(f"Action result: {action_result}")
 
@@ -271,9 +274,9 @@ async def vision_chat(
         logger.info(f" Raw response: {response_text[:100]}...")
 
         # Handle actions
-        action_match = re.search(r'\[ACTION: (.*?)\]', response_text)
+        action_match = re.search(r'(?:\[ACTION: (.*?)\]|ACTION: ([\w]+\(.*?\)))', response_text)
         if action_match:
-            action_str = action_match.group(1)
+            action_str = action_match.group(1) or action_match.group(2)
             action_result = action_executor.execute_action(action_str)
             logger.info(f"Action result: {action_result}")
 
@@ -306,6 +309,57 @@ async def vision_chat(
         "visual_description": "I can see you" if visual_content else "Camera off",
         "tts_url": f"/api/chat/tts?text={quote(clean_text)}"
     }
+
+@router.post("/voice")
+async def chat_voice(audio: UploadFile = File(...)):
+    """Transcribe voice, get response, and speak back."""
+    try:
+        audio_bytes = await audio.read()
+        user_text = await hf_client.transcribe_audio(audio_bytes)
+
+        if not user_text:
+            return {"user_text": "", "response": "I couldn't quite hear you. Could you say that again?", "emotion": "neutral"}
+
+        # Reuse chat logic
+        relevant_memories = memory_manager.query_memory(user_text, n_results=5)
+        recent_history = memory_manager.get_recent_memories(n=10)
+
+        system_content = create_Malaika_system_prompt(
+            context_summary="\n".join(relevant_memories),
+            history_summary="\n".join(recent_history)
+        )
+
+        messages = [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": user_text}
+        ]
+
+        response_text = await hf_client.chat_completion(messages)
+
+        # Handle actions
+        action_match = re.search(r'(?:\[ACTION: (.*?)\]|ACTION: ([\w]+\(.*?\)))', response_text)
+        if action_match:
+            action_str = action_match.group(1) or action_match.group(2)
+            action_result = action_executor.execute_action(action_str)
+            if "Error:" in action_result:
+                memory_manager.add_memory(f"System: Action '{action_str}' failed with: {action_result}")
+            else:
+                memory_manager.add_memory(f"System: Action '{action_str}' succeeded: {action_result}")
+
+        clean_text = clean_Malaika_response(response_text)
+        memory_manager.add_memory(f"User: {user_text}")
+        memory_manager.add_memory(f"Malaika: {clean_text}")
+
+        emotion = await emotion_engine.analyze_text_emotion(clean_text)
+
+        return {
+            "user_text": user_text,
+            "response": clean_text,
+            "emotion": emotion
+        }
+    except Exception as e:
+        logger.error(f"Voice chat error: {e}")
+        return {"user_text": "", "response": "I'm having a little trouble with my ears right now.", "emotion": "sad"}
 
 @router.get("/tts")
 async def get_tts(text: str):
