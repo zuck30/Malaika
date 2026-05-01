@@ -1,9 +1,11 @@
 from huggingface_hub import AsyncInferenceClient
+from huggingface_hub.utils import HfHubHTTPError
 import os
 import logging
 import random
 import asyncio
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 load_dotenv(override=True)
 
@@ -54,14 +56,28 @@ CRITICAL RULES:
             elif msg.get("role") != "system":
                 cleaned_messages.append(msg)
 
+        @retry(
+            retry=retry_if_exception(lambda e: isinstance(e, HfHubHTTPError) and getattr(e, 'response', None) and getattr(e.response, 'status_code', None) in [429, 502, 503, 504]),
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            reraise=True
+        )
+        async def _attempt_inference(model, msgs, tokens, temp):
+            return await self.client.chat_completion(
+                model=model,
+                messages=msgs,
+                max_tokens=tokens,
+                temperature=temp,
+            )
+
         try:
             logger.info(f"Calling chat_completion for model {self.model_id}")
 
-            response = await self.client.chat_completion(
-                model=self.model_id,
-                messages=cleaned_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
+            response = await _attempt_inference(
+                self.model_id,
+                cleaned_messages,
+                max_tokens,
+                temperature,
             )
 
             content = response.choices[0].message.content.strip()
@@ -75,12 +91,14 @@ CRITICAL RULES:
             return self._get_fallback_response()
 
         except Exception as e:
-            logger.error(f"Inference failed for {self.model_id}: {type(e).__name__}: {e}")
+            status_code = getattr(e, 'response', None) and getattr(e.response, 'status_code', None)
+            logger.error(f"Inference failed for {self.model_id}: {type(e).__name__} (Status: {status_code}): {e}")
 
             # Fallback for vision model failure
             try:
                 logger.info("Trying robust text-only fallback model...")
-                fallback_model = "meta-llama/Llama-3.2-3B-Instruct"
+                # Using 8B instead of 3B as it might be more stable/available
+                fallback_model = "meta-llama/Llama-3.1-8B-Instruct"
                 text_only_messages = []
                 for msg in cleaned_messages:
                     if isinstance(msg.get("content"), list):
@@ -89,17 +107,18 @@ CRITICAL RULES:
                     else:
                         text_only_messages.append(msg)
 
-                response = await self.client.chat_completion(
-                    model=fallback_model,
-                    messages=text_only_messages,
-                    max_tokens=300,
-                    temperature=0.7
+                response = await _attempt_inference(
+                    fallback_model,
+                    text_only_messages,
+                    300,
+                    0.7
                 )
                 return response.choices[0].message.content.strip()
             except Exception as fe:
-                logger.error(f"Fallback also failed: {fe}")
+                fe_status = getattr(fe, 'response', None) and getattr(fe.response, 'status_code', None)
+                logger.error(f"Fallback also failed: {type(fe).__name__} (Status: {fe_status}): {fe}")
 
-            if "503" in str(e):
+            if "503" in str(e) or (status_code == 503):
                 return "I'm just waking up... give me a second to clear my eyes."
             return self._get_fallback_response()
 

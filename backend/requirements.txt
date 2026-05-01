@@ -27,9 +27,10 @@ opencv-python-headless==4.9.0.80
 pillow==10.2.0
 
 # Audio
-edge-tts==6.1.10
+edge-tts>=7.2.8
 
 # Utilities & Dependency Resolution
+tenacity>=8.0.0
 psutil==7.2.2
 numpy==1.26.4
 setuptools<70
