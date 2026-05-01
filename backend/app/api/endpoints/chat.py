@@ -151,8 +151,13 @@ async def chat_text(request: ChatRequest):
     if action_match:
         action_str = action_match.group(1)
         action_result = action_executor.execute_action(action_str)
-        # Optionally append action result to memory or response
         logger.info(f"Action result: {action_result}")
+
+        # Feed back to LLM if error
+        if "Error:" in action_result:
+            memory_manager.add_memory(f"System: Action '{action_str}' failed with: {action_result}")
+        else:
+            memory_manager.add_memory(f"System: Action '{action_str}' succeeded: {action_result}")
 
     # Clean up response to ensure character consistency
     clean_text = clean_Malaika_response(response_text)
@@ -271,6 +276,12 @@ async def vision_chat(
             action_str = action_match.group(1)
             action_result = action_executor.execute_action(action_str)
             logger.info(f"Action result: {action_result}")
+
+            # Feed back to LLM if error
+            if "Error:" in action_result:
+                memory_manager.add_memory(f"System: Action '{action_str}' failed with: {action_result}")
+            else:
+                memory_manager.add_memory(f"System: Action '{action_str}' succeeded: {action_result}")
 
         # Clean up response to ensure character consistency
         clean_text = clean_Malaika_response(response_text)
